@@ -12,117 +12,143 @@
             min-height: 100vh;
             color: #1a1a2e;
         }
-        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { max-width: 860px; margin: 0 auto; padding: 20px; }
 
-        header {
-            text-align: center;
-            padding: 30px 0;
+        header { text-align: center; padding: 24px 0; color: white; }
+        header h1 { font-size: 2.4em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        header p { font-size: 1.1em; opacity: 0.9; margin-top: 6px; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 0; }
+        .tab-btn {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.3);
+            border: none;
+            border-radius: 12px 12px 0 0;
             color: white;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
         }
-        header h1 { font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        header p { font-size: 1.2em; opacity: 0.9; margin-top: 8px; }
+        .tab-btn.active { background: white; color: #0077b6; }
+        .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.5); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
 
         .card {
             background: white;
-            border-radius: 16px;
-            padding: 30px;
-            margin: 20px 0;
+            border-radius: 0 0 16px 16px;
+            padding: 28px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         }
-        .card h2 { color: #0077b6; margin-bottom: 20px; }
+        .card.rounded-top { border-radius: 16px; margin-top: 16px; }
+        .card h2 { color: #0077b6; margin-bottom: 18px; }
 
-        .form-group { margin-bottom: 16px; }
-        .form-group label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: #333;
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 5px; color: #333; }
+        .form-group select, .form-group input, .form-group textarea {
+            width: 100%; padding: 10px 14px; border: 2px solid #e0e0e0;
+            border-radius: 8px; font-size: 1em; transition: border-color 0.2s;
+            font-family: inherit;
         }
-        .form-group select, .form-group input {
-            width: 100%;
-            padding: 10px 14px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 1em;
-            transition: border-color 0.2s;
+        .form-group select:focus, .form-group input:focus, .form-group textarea:focus {
+            border-color: #0077b6; outline: none;
         }
-        .form-group select:focus, .form-group input:focus {
-            border-color: #0077b6;
-            outline: none;
-        }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-
-        button {
-            background: #0077b6;
-            color: white;
-            border: none;
-            padding: 14px 32px;
-            border-radius: 8px;
-            font-size: 1.1em;
-            font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            transition: background 0.2s;
+        button.primary {
+            background: #0077b6; color: white; border: none; padding: 13px 28px;
+            border-radius: 8px; font-size: 1.05em; font-weight: 600;
+            cursor: pointer; width: 100%; transition: background 0.2s;
         }
-        button:hover { background: #005f8a; }
-        button:disabled { background: #999; cursor: not-allowed; }
+        button.primary:hover { background: #005f8a; }
+        button.primary:disabled { background: #999; cursor: not-allowed; }
 
+        /* Chat */
+        .chat-box {
+            border: 2px solid #e0e0e0; border-radius: 12px;
+            height: 320px; overflow-y: auto; padding: 16px;
+            margin-bottom: 14px; background: #fafbfc;
+        }
+        .chat-msg { margin-bottom: 12px; line-height: 1.5; }
+        .chat-msg.user { text-align: right; }
+        .chat-msg .bubble {
+            display: inline-block; padding: 10px 16px; border-radius: 12px;
+            max-width: 85%; text-align: left; white-space: pre-line;
+        }
+        .chat-msg.user .bubble { background: #0077b6; color: white; }
+        .chat-msg.lagi .bubble { background: #e8f4f8; color: #1a1a2e; }
+        .chat-msg .label { font-size: 0.75em; color: #888; margin-bottom: 2px; }
+        .chat-input-row { display: flex; gap: 8px; }
+        .chat-input-row input { flex: 1; }
+        .chat-input-row button { width: auto; padding: 10px 24px; }
+
+        /* Forecast result */
         .result { display: none; }
         .result.active { display: block; }
-
-        .forecast-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin: 20px 0;
-        }
+        .forecast-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; }
         .forecast-item {
-            background: #f0f7ff;
-            border-radius: 12px;
-            padding: 16px;
-            text-align: center;
+            background: #f0f7ff; border-radius: 12px; padding: 16px; text-align: center;
         }
-        .forecast-item .label { font-size: 0.85em; color: #666; }
-        .forecast-item .value { font-size: 1.8em; font-weight: 700; color: #0077b6; margin: 4px 0; }
-        .forecast-item .ci { font-size: 0.8em; color: #888; }
+        .forecast-item .label { font-size: 0.82em; color: #666; }
+        .forecast-item .value { font-size: 1.7em; font-weight: 700; color: #0077b6; margin: 4px 0; }
+        .forecast-item .ci { font-size: 0.78em; color: #888; }
 
-        .raw-vs-adjusted {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr;
-            gap: 10px;
-            align-items: center;
-            margin: 16px 0;
+        /* Certainty bar */
+        .certainty-bar {
+            background: #f0f0f0; border-radius: 20px; height: 28px;
+            overflow: hidden; margin: 10px 0; position: relative;
         }
-        .raw-vs-adjusted .arrow { font-size: 1.5em; color: #0077b6; }
+        .certainty-fill {
+            height: 100%; border-radius: 20px;
+            transition: width 0.5s ease; display: flex;
+            align-items: center; justify-content: center;
+            color: white; font-weight: 700; font-size: 0.85em;
+        }
+        .certainty-fill.high { background: linear-gradient(90deg, #2ecc71, #27ae60); }
+        .certainty-fill.moderate { background: linear-gradient(90deg, #f39c12, #e67e22); }
+        .certainty-fill.developing { background: linear-gradient(90deg, #e74c3c, #c0392b); }
 
+        /* Disclaimer */
         .disclaimer {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 8px;
-            padding: 12px 16px;
-            font-size: 0.9em;
-            margin-top: 16px;
-            color: #856404;
+            background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px;
+            padding: 12px 16px; font-size: 0.88em; margin-top: 14px; color: #6d4c00;
+            line-height: 1.5;
         }
 
-        .error {
-            background: #f8d7da;
-            border: 1px solid #f5c6cb;
-            border-radius: 8px;
-            padding: 12px 16px;
-            color: #721c24;
-            display: none;
+        /* FAQ */
+        .faq-item { border-bottom: 1px solid #eee; padding: 14px 0; }
+        .faq-item:last-child { border-bottom: none; }
+        .faq-q {
+            font-weight: 700; color: #0077b6; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
         }
+        .faq-q::after { content: '+'; font-size: 1.3em; transition: transform 0.2s; }
+        .faq-q.open::after { content: '−'; }
+        .faq-a { padding-top: 8px; color: #555; line-height: 1.6; display: none; }
+        .faq-a.open { display: block; }
+
+        /* Info section */
+        .info-section { margin-bottom: 24px; }
+        .info-section h3 { color: #0077b6; margin-bottom: 8px; font-size: 1.1em; }
+        .info-section p { color: #555; line-height: 1.6; }
+
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px;
+                 padding: 12px; color: #721c24; display: none; margin-top: 12px; }
         .error.active { display: block; }
 
-        footer {
-            text-align: center;
-            padding: 20px;
-            color: rgba(255,255,255,0.8);
-            font-size: 0.9em;
-        }
+        footer { text-align: center; padding: 18px; color: rgba(255,255,255,0.8); font-size: 0.88em; }
         footer a { color: white; }
+
+        @media (max-width: 600px) {
+            .form-row { grid-template-columns: 1fr; }
+            .forecast-grid { grid-template-columns: 1fr; }
+            .tabs { flex-wrap: wrap; }
+            .tab-btn { font-size: 0.85em; padding: 10px 8px; }
+        }
     </style>
 </head>
 <body>
@@ -132,86 +158,202 @@
             <p>Fiji Weather Guardian</p>
         </header>
 
-        <div class="card">
-            <h2>Get Adjusted Forecast</h2>
-            <form id="forecastForm">
-                <div class="form-group">
-                    <label for="location">Location</label>
-                    <select id="location" required>
-                        <option value="Suva">Suva</option>
-                        <option value="Nadi">Nadi</option>
-                        <option value="Labasa">Labasa</option>
-                        <option value="Lautoka">Lautoka</option>
-                    </select>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="temperature">Temperature (C)</label>
-                        <input type="number" id="temperature" value="28" step="0.1" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="rain">Rain Probability (%)</label>
-                        <input type="number" id="rain" value="60" min="0" max="100" required>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="wind">Wind (km/h)</label>
-                        <input type="number" id="wind" value="15" step="0.1" min="0" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="humidity">Humidity (%)</label>
-                        <input type="number" id="humidity" value="75" min="0" max="100" required>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="enso">ENSO Phase</label>
-                        <select id="enso">
-                            <option value="Neutral">Neutral</option>
-                            <option value="Nino">El Nino</option>
-                            <option value="Nina">La Nina</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>&nbsp;</label>
-                        <button type="submit">Get Forecast</button>
-                    </div>
-                </div>
-            </form>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('chat')">Chat with Lagi</button>
+            <button class="tab-btn" onclick="switchTab('forecast')">Forecast</button>
+            <button class="tab-btn" onclick="switchTab('info')">Information on Lagi</button>
         </div>
 
-        <div class="error" id="errorBox"></div>
+        <!-- Tab 1: Chat -->
+        <div id="tab-chat" class="tab-content active">
+            <div class="card">
+                <h2>Ask Lagi Anything</h2>
+                <div class="form-row" style="margin-bottom:14px">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label for="chatLocation">Location</label>
+                        <select id="chatLocation">
+                            <option value="Suva">Suva</option>
+                            <option value="Nadi">Nadi</option>
+                            <option value="Labasa">Labasa</option>
+                            <option value="Lautoka">Lautoka</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Certainty</label>
+                        <div class="certainty-bar">
+                            <div class="certainty-fill moderate" id="chatCertainty" style="width:50%">50%</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-box" id="chatBox">
+                    <div class="chat-msg lagi">
+                        <div class="label">Lagi</div>
+                        <div class="bubble">Bula! I'm Lagi, your Fiji Weather Guardian. Ask me anything about the weather — "Will it rain today?", "How hot will it get?", "Is it safe to go fishing?" — I'm here to help! Just type below.</div>
+                    </div>
+                </div>
+                <form id="chatForm" class="chat-input-row">
+                    <input type="text" id="chatInput" placeholder="e.g. Will it rain this afternoon?" required>
+                    <button type="submit" class="primary" style="border-radius:8px">Send</button>
+                </form>
+            </div>
+        </div>
 
-        <div class="card result" id="resultCard">
-            <h2 id="resultTitle">Bula!</h2>
-
-            <div class="forecast-grid">
-                <div class="forecast-item">
-                    <div class="label">Temperature</div>
-                    <div class="value" id="tempValue">--</div>
-                    <div class="ci" id="tempCI">95% CI: --</div>
-                </div>
-                <div class="forecast-item">
-                    <div class="label">Rain Probability</div>
-                    <div class="value" id="rainValue">--</div>
-                    <div class="ci" id="rainCI">95% CI: --</div>
-                </div>
-                <div class="forecast-item">
-                    <div class="label">Temperature Correction</div>
-                    <div class="value" id="deltaTValue">--</div>
-                    <div class="ci">applied to raw forecast</div>
-                </div>
-                <div class="forecast-item">
-                    <div class="label">Wind</div>
-                    <div class="value" id="windValue">--</div>
-                    <div class="ci">km/h</div>
-                </div>
+        <!-- Tab 2: Forecast -->
+        <div id="tab-forecast" class="tab-content">
+            <div class="card">
+                <h2>Get Adjusted Forecast</h2>
+                <form id="forecastForm">
+                    <div class="form-group">
+                        <label for="location">Location</label>
+                        <select id="location" required>
+                            <option value="Suva">Suva</option>
+                            <option value="Nadi">Nadi</option>
+                            <option value="Labasa">Labasa</option>
+                            <option value="Lautoka">Lautoka</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="temperature">Temperature (C)</label>
+                            <input type="number" id="temperature" value="28" step="0.1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="rain">Rain Probability (%)</label>
+                            <input type="number" id="rain" value="60" min="0" max="100" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="wind">Wind (km/h)</label>
+                            <input type="number" id="wind" value="15" step="0.1" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="humidity">Humidity (%)</label>
+                            <input type="number" id="humidity" value="75" min="0" max="100" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="enso">ENSO Phase</label>
+                            <select id="enso">
+                                <option value="Neutral">Neutral</option>
+                                <option value="Nino">El Nino</option>
+                                <option value="Nina">La Nina</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>&nbsp;</label>
+                            <button type="submit" class="primary">Get Forecast</button>
+                        </div>
+                    </div>
+                </form>
             </div>
 
-            <div class="disclaimer">
-                This is guidance, not a guarantee. Always check official
-                <strong>Fiji Meteorological Service</strong> warnings for severe weather.
+            <div class="error" id="errorBox"></div>
+
+            <div class="card rounded-top result" id="resultCard">
+                <h2 id="resultTitle">Bula!</h2>
+                <div class="forecast-grid">
+                    <div class="forecast-item">
+                        <div class="label">Temperature</div>
+                        <div class="value" id="tempValue">--</div>
+                        <div class="ci" id="tempCI">95% CI: --</div>
+                    </div>
+                    <div class="forecast-item">
+                        <div class="label">Rain Probability</div>
+                        <div class="value" id="rainValue">--</div>
+                        <div class="ci" id="rainCI">95% CI: --</div>
+                    </div>
+                    <div class="forecast-item">
+                        <div class="label">Temperature Correction</div>
+                        <div class="value" id="deltaTValue">--</div>
+                        <div class="ci">applied to raw forecast</div>
+                    </div>
+                    <div class="forecast-item">
+                        <div class="label">Wind</div>
+                        <div class="value" id="windValue">--</div>
+                        <div class="ci">km/h</div>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-weight:600;color:#333">Prediction Certainty</label>
+                    <div class="certainty-bar">
+                        <div class="certainty-fill moderate" id="forecastCertainty" style="width:50%">50%</div>
+                    </div>
+                </div>
+                <div class="disclaimer" id="forecastDisclaimer">
+                    Based on the analysis, the certainty of our prediction is 50%.
+                    Weather patterns in the Pacific can change rapidly due to local microclimates
+                    and climate variability — always stay prepared and check official FMS warnings
+                    for safety-critical decisions.
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Information on Lagi -->
+        <div id="tab-info" class="tab-content">
+            <div class="card">
+                <h2>Information on Lagi</h2>
+
+                <div class="info-section">
+                    <h3>How Lagi Works</h3>
+                    <p>Lagi stores every past prediction, compares it to 15+ years of actual FMS and official station data, computes the Pearson correlation coefficient (or linear regression bias), and applies that dynamic adjustment to today's 5-source ensemble.</p>
+                    <p style="margin-top:8px">Our five forecast sources are: Fiji Meteorological Service, Windy.com, AccuWeather, Weather Underground, and BOM Australia. By combining and correcting these sources, Lagi delivers forecasts tuned specifically for Fiji's unique tropical climate.</p>
+                </div>
+
+                <div class="info-section">
+                    <h3>Current Certainty Level</h3>
+                    <div class="certainty-bar">
+                        <div class="certainty-fill moderate" id="infoCertainty" style="width:50%">50%</div>
+                    </div>
+                    <p id="infoCertaintyNote" style="margin-top:6px;font-size:0.9em;color:#666">Loading certainty data...</p>
+                </div>
+
+                <div class="info-section">
+                    <h3>Frequently Asked Questions</h3>
+                    <div id="faqContainer">
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">What is Lagi?</div>
+                            <div class="faq-a">Lagi is an AI-powered weather guardian built specifically for Fiji and the Pacific Islands. It combines official data with smart historical corrections for more reliable local forecasts.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">How accurate is Lagi?</div>
+                            <div class="faq-a">Lagi uses 15+ years of historical validation to calculate adjustment coefficients, typically achieving stronger correlation with actual conditions than raw model outputs.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">Where does your data come from?</div>
+                            <div class="faq-a">We ensemble forecasts from Fiji Meteorological Service, Windy, AccuWeather, Wunderground, and BOM Australia, plus long-term records from FMS and global climate archives.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">What does the "adjustment coefficient" mean?</div>
+                            <div class="faq-a">It measures how Lagi's past predictions compared to real weather. We use this to fine-tune today's forecast for better local accuracy.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">Why does Lagi sometimes differ from the official Fiji Met Service forecast?</div>
+                            <div class="faq-a">We apply data-driven bias correction based on historical performance while always respecting official warnings.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">How do you calculate certainty?</div>
+                            <div class="faq-a">Certainty is derived from the strength of the historical correlation (e.g. R&sup2; value) between past adjusted forecasts and actual observations.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">Can Lagi help with farming or fishing decisions?</div>
+                            <div class="faq-a">Absolutely! Ask questions like "will it rain this afternoon?" or "how many hours of sun before rain?"</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">Is Lagi free?</div>
+                            <div class="faq-a">Yes, core forecasts are free. Advanced features may have optional premium tiers in the future.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">How often is Lagi updated?</div>
+                            <div class="faq-a">Forecasts refresh every hour using the latest data.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-q" onclick="toggleFaq(this)">Who built Lagi?</div>
+                            <div class="faq-a">Part of the ambitious "100 Agents in 100 Days for Fiji and the Pacific" project.</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -224,11 +366,82 @@
     <script>
         const API_URL = window.location.origin;
 
+        // Tab switching
+        function switchTab(name) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+            event.target.classList.add('active');
+            if (name === 'info') loadCertainty();
+        }
+
+        // FAQ toggle
+        function toggleFaq(el) {
+            el.classList.toggle('open');
+            el.nextElementSibling.classList.toggle('open');
+        }
+
+        // Certainty bar update
+        function updateCertaintyBar(el, pct, level) {
+            el.style.width = pct + '%';
+            el.textContent = pct + '%';
+            el.className = 'certainty-fill ' + (level || (pct >= 75 ? 'high' : pct >= 50 ? 'moderate' : 'developing'));
+        }
+
+        // Load certainty from API
+        async function loadCertainty() {
+            try {
+                const res = await fetch(API_URL + '/certainty');
+                if (res.ok) {
+                    const data = await res.json();
+                    updateCertaintyBar(document.getElementById('infoCertainty'), data.certainty_pct, data.level);
+                    updateCertaintyBar(document.getElementById('chatCertainty'), data.certainty_pct, data.level);
+                    document.getElementById('infoCertaintyNote').textContent = data.note;
+                }
+            } catch (e) { /* silently fail */ }
+        }
+
+        // Chat form
+        document.getElementById('chatForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const question = input.value.trim();
+            if (!question) return;
+
+            const chatBox = document.getElementById('chatBox');
+            const location = document.getElementById('chatLocation').value;
+
+            // Add user message
+            chatBox.innerHTML += `<div class="chat-msg user"><div class="label">You</div><div class="bubble">${escapeHtml(question)}</div></div>`;
+            input.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                const res = await fetch(API_URL + '/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question, location }),
+                });
+
+                if (!res.ok) throw new Error('Request failed');
+                const data = await res.json();
+
+                chatBox.innerHTML += `<div class="chat-msg lagi"><div class="label">Lagi</div><div class="bubble">${escapeHtml(data.reply)}</div></div>`;
+
+                if (data.certainty) {
+                    updateCertaintyBar(document.getElementById('chatCertainty'), data.certainty.certainty_pct, data.certainty.level);
+                }
+            } catch (err) {
+                chatBox.innerHTML += `<div class="chat-msg lagi"><div class="label">Lagi</div><div class="bubble">Sorry, I'm having trouble connecting right now. Please try again in a moment!</div></div>`;
+            }
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+
+        // Forecast form
         document.getElementById('forecastForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button');
-            btn.disabled = true;
-            btn.textContent = 'Loading...';
+            btn.disabled = true; btn.textContent = 'Loading...';
 
             const errorBox = document.getElementById('errorBox');
             const resultCard = document.getElementById('resultCard');
@@ -245,38 +458,53 @@
             };
 
             try {
-                const res = await fetch(`${API_URL}/forecast`, {
+                const res = await fetch(API_URL + '/forecast', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body),
                 });
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.detail || 'Request failed');
-                }
+                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Request failed'); }
 
                 const data = await res.json();
 
                 document.getElementById('resultTitle').textContent = data.bula;
-                document.getElementById('tempValue').textContent = `${data.monte_carlo.T_mean}°C`;
+                document.getElementById('tempValue').textContent = data.monte_carlo.T_mean + '\u00B0C';
                 document.getElementById('tempCI').textContent =
-                    `95% CI: ${data.monte_carlo.T_95_CI[0]}°C – ${data.monte_carlo.T_95_CI[1]}°C (±${data.monte_carlo.T_sigma}°C)`;
-                document.getElementById('rainValue').textContent = `${data.monte_carlo.P_mean}%`;
+                    '95% CI: ' + data.monte_carlo.T_95_CI[0] + '\u00B0C \u2013 ' + data.monte_carlo.T_95_CI[1] + '\u00B0C';
+                document.getElementById('rainValue').textContent = data.monte_carlo.P_mean + '%';
                 document.getElementById('rainCI').textContent =
-                    `95% CI: ${data.monte_carlo.P_95_CI[0]}% – ${data.monte_carlo.P_95_CI[1]}%`;
-                document.getElementById('deltaTValue').textContent = `${data.corrections.delta_T > 0 ? '+' : ''}${data.corrections.delta_T}°C`;
+                    '95% CI: ' + data.monte_carlo.P_95_CI[0] + '% \u2013 ' + data.monte_carlo.P_95_CI[1] + '%';
+                document.getElementById('deltaTValue').textContent =
+                    (data.corrections.static_delta_T > 0 ? '+' : '') + data.corrections.static_delta_T + '\u00B0C';
                 document.getElementById('windValue').textContent = data.adjusted_forecast.wind;
+
+                // Certainty
+                const certRes = await fetch(API_URL + '/certainty');
+                if (certRes.ok) {
+                    const cert = await certRes.json();
+                    updateCertaintyBar(document.getElementById('forecastCertainty'), cert.certainty_pct, cert.level);
+                    document.getElementById('forecastDisclaimer').textContent =
+                        'Based on the analysis, the certainty of our prediction is ' + cert.certainty_pct +
+                        '%. Weather patterns in the Pacific can change rapidly due to local microclimates and climate variability \u2014 always stay prepared and check official FMS warnings for safety-critical decisions.';
+                }
 
                 resultCard.classList.add('active');
             } catch (err) {
-                errorBox.textContent = `Error: ${err.message}`;
+                errorBox.textContent = 'Error: ' + err.message;
                 errorBox.classList.add('active');
             } finally {
-                btn.disabled = false;
-                btn.textContent = 'Get Forecast';
+                btn.disabled = false; btn.textContent = 'Get Forecast';
             }
         });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load certainty on page load
+        loadCertainty();
     </script>
 </body>
 </html>

@@ -28,8 +28,8 @@ GITHUB_REPO="renles/lagi-weather"
 GITHUB_BRANCH="main"
 
 # Model configuration
-MODEL="${MODEL:-Qwen/Qwen3.5-27B}"
-BATCH_SIZE="${BATCH_SIZE:-4}"
+MODEL="${MODEL:-Qwen/Qwen3.5-9B}"
+BATCH_SIZE="${BATCH_SIZE:-1}"
 EPOCHS="${EPOCHS:-3}"
 LR="${LR:-2e-4}"
 
@@ -114,7 +114,7 @@ Training metrics:
 - Model: ${MODEL}
 - Epochs: ${EPOCHS}
 - LoRA rank: 16, alpha: 32
-- Training cost: < \$5 on Vast.ai RTX 4090"
+- Compute: RTX 4090 (24 GB VRAM)"
 
     git add -A
     git commit -m "$COMMIT_MSG" || echo "Nothing to commit"

@@ -19,24 +19,20 @@ The name "Lagi" means "sky" or "heaven" in Fijian -- fitting for a weather guard
 ## Training Details
 
 ### Model & Method
-- **Base Model:** Qwen3.5-27B (4-bit quantisation)
+- **Base Model:** Qwen3.5-9B (4-bit quantisation)
 - **Method:** QLoRA (Low-Rank Adaptation with 4-bit quantisation)
 - **LoRA Configuration:** Rank 16, Alpha 32
 - **Epochs:** 3
-- **Batch Size:** 4 with gradient accumulation of 2
+- **Batch Size:** 1 with gradient accumulation of 8
 - **Learning Rate:** 2e-4 with cosine schedule
 
-### Hardware & Cost
+### Compute
 
 | Item | Detail |
 |------|--------|
 | GPU | 1x NVIDIA RTX 4090 (24 GB VRAM) |
-| Provider | Vast.ai |
-| Rate | ~$0.32-0.40/hour |
-| Duration | ~8-10 hours |
-| **Total Cost** | **$2.56 - $4.00** |
-
-**Total training cost: under $5.** That's less than a cup of coffee at the Suva Municipal Market.
+| Quantisation | 4-bit (QLoRA) |
+| Batch Size | 1 (gradient accumulation 8) |
 
 ### Training Data
 - ~5,500 daily forecast-vs-actual pairs (2010-2025)
@@ -84,9 +80,9 @@ This is inspired by Andrej Karpathy's approach to autonomous research -- letting
 - **GitHub:** [renles/lagi-weather](https://github.com/renles/lagi-weather) (full source code including training scripts)
 - **Live:** renles.com (coming soon)
 
-## Cost Proof
+## Compute Details
 
-Training was completed on a single RTX 4090 rented via Vast.ai. Total compute cost stayed under our $5 target. Training logs and metrics are available in the GitHub repository under `logs/`.
+Training was completed on a single RTX 4090. Training logs and metrics are available in the GitHub repository under `logs/`.
 
 ---
 

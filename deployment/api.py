@@ -243,6 +243,60 @@ async def list_locations():
     return {"locations": VALID_LOCATIONS}
 
 
+# ---------------------------------------------------------------------------
+# Natural language chat endpoint
+# ---------------------------------------------------------------------------
+class ChatRequest(BaseModel):
+    question: str = Field(..., description="Natural language weather question")
+    location: str = Field("Suva", description="Fiji location")
+    enso_phase: str = Field("Neutral", description="ENSO phase")
+
+
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    """
+    Natural language weather chat. Ask Lagi anything about the weather
+    in plain English and get a friendly, informative Fijian-tone reply.
+    """
+    if req.location not in VALID_LOCATIONS:
+        raise HTTPException(400, f"Invalid location. Choose from: {VALID_LOCATIONS}")
+
+    season = engine.get_season(datetime.utcnow().month)
+
+    # Use default forecast values for NL responses (will use ensemble when API keys are set)
+    result = engine.correct_forecast(
+        location=req.location,
+        T_f=28.0,  # tropical default
+        P_f=55.0,
+        W_f=15.0,
+        humidity_f=75.0,
+        season=season,
+        enso_phase=req.enso_phase,
+    )
+
+    reply = engine.natural_language_response(req.question, req.location, result)
+    certainty = engine.compute_certainty()
+
+    return {
+        "question": req.question,
+        "reply": reply,
+        "location": req.location,
+        "forecast": result["adjusted_forecast"],
+        "certainty": certainty,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Certainty endpoint
+# ---------------------------------------------------------------------------
+@app.get("/certainty")
+async def get_certainty():
+    """Get the current prediction certainty level."""
+    certainty = engine.compute_certainty()
+    return certainty
+
+
 # Serve the web UI
 @app.get("/ui")
 async def serve_ui():

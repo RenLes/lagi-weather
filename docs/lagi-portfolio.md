@@ -100,16 +100,14 @@ When asked for a weather forecast:
 
 ## Base Model Recommendation (March 2026 Ollama)
 
-Qwen3.5-27B or Qwen3.5-32B (4-bit quantization via Ollama).
+Qwen3.5-9B (4-bit quantization via Ollama).
 
 ---
 
-## Vast.ai GPU Specs + Cost Estimates
+## Compute
 
-- **GPU:** 1x RTX 4090 (24 GB VRAM)
-- **Target Duration:** 8-10 hours
-- **Cost Rate:** $0.32-0.40/hr
-- **Total Cost:** $2.56 - $4.00 (strictly under $5)
+- **GPU:** 1x NVIDIA RTX 4090 (24 GB VRAM)
+- **Quantisation:** 4-bit (QLoRA)
 
 ---
 
@@ -170,9 +168,9 @@ Monte Carlo stress-test: sample 1,000 error realisations from historical Delta d
 - LoRA alpha: 32
 - Quantization: 4-bit (QLoRA)
 - Epochs: 3
-- Batch size: 4-8
+- Batch size: 1 (gradient accumulation 8)
 - Learning rate: 2e-4
-- Expected duration on RTX 4090: 8-10 hours
+- Compute: 1x RTX 4090 (24 GB VRAM)
 
 ---
 
@@ -209,7 +207,5 @@ Quarterly retraining with updated weather data.
 - **Monitoring:** Daily accuracy tracking against Fiji Met Service actuals
 
 ---
-
-**Total training cost stays under $5.** Nohup script is fully implemented.
 
 Vinaka vakalevu! Let's keep Fiji safe and informed.

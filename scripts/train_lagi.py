@@ -33,6 +33,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.mixture import GaussianMixture
 
 import torch
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -56,10 +58,10 @@ LORA_RANK = 16
 LORA_ALPHA = 32
 LORA_DROPOUT = 0.05
 NUM_EPOCHS = 3
-BATCH_SIZE = 4
-GRADIENT_ACCUMULATION = 2
+BATCH_SIZE = 1
+GRADIENT_ACCUMULATION = 8  # effective batch = 8
 LEARNING_RATE = 2e-4
-MAX_SEQ_LENGTH = 2048
+MAX_SEQ_LENGTH = 512  # shorter sequences to fit in VRAM
 
 MONTE_CARLO_SAMPLES = 1000
 KARPATHY_EXPERIMENTS = 25  # 20-30 range

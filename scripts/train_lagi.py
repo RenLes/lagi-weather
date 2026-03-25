@@ -119,6 +119,7 @@ def generate_synthetic_data(n_per_location: int = 1375) -> pd.DataFrame:
         loc_dates.sort()
 
         for d in loc_dates:
+            d = pd.Timestamp(d)
             month = d.month
             season = "DJF" if month in [12, 1, 2] else (
                 "MAM" if month in [3, 4, 5] else (

@@ -648,7 +648,7 @@ def main():
         logging_steps=10,
         save_strategy="epoch",
         save_total_limit=3,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         fp16=True,
         report_to="none",
         optim="paged_adamw_8bit",

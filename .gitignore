@@ -12,8 +12,7 @@ venv/
 .venv/
 env/
 
-# Model artifacts (use Git LFS or model hub for large files)
-output/adapter_model.safetensors
+# Model artifacts (large non-LFS files)
 output/model-*
 output/*.bin
 output/*.pt
@@ -22,8 +21,9 @@ checkpoints/
 # Data (add your own CSVs)
 data/*.csv
 
-# Logs (keep JSON metrics, ignore large logs)
+# Logs (keep training log, ignore others)
 logs/*.log
+!logs/nohup_training_v2.log
 
 # IDE
 .vscode/

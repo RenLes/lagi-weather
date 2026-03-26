@@ -2,7 +2,7 @@
 """
 Lagi -- Fiji Weather Guardian: QLoRA Fine-Tuning Script
 =======================================================
-Fine-tunes Qwen3.5-27B/32B with 4-bit QLoRA on weather forecast
+Fine-tunes Qwen3.5-9B with 4-bit QLoRA on weather forecast
 correction data for Fiji (Suva, Nadi, Labasa, Lautoka).
 
 Implements the full mathematical core:
@@ -53,7 +53,7 @@ LOCATIONS = ["Suva", "Nadi", "Labasa", "Lautoka"]
 SEASONS = {"DJF": 0, "MAM": 1, "JJA": 2, "SON": 3}
 ENSO_PHASES = {"Nina": -1, "Neutral": 0, "Nino": 1}
 
-DEFAULT_MODEL = "Qwen/Qwen3.5-27B"
+DEFAULT_MODEL = "Qwen/Qwen3.5-9B"
 LORA_RANK = 16
 LORA_ALPHA = 32
 LORA_DROPOUT = 0.05

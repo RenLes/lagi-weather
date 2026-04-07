@@ -3,75 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lagi - Fiji Weather Guardian</title>
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+                   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+                   font-src https://fonts.gstatic.com;
+                   img-src 'self' data: https:;
+                   connect-src 'self';
+                   form-action 'self';
+                   base-uri 'self';">
+    <title>Lagi — Fiji Weather Guardian</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #0077b6, #00b4d8, #48cae4);
-            min-height: 100vh;
-            color: #1a1a2e;
-        }
-        .container { max-width: 860px; margin: 0 auto; padding: 20px; }
 
-        header { text-align: center; padding: 24px 0; color: white; }
-        header h1 { font-size: 2.4em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        header p { font-size: 1.1em; opacity: 0.9; margin-top: 6px; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #09090b;
+            min-height: 100vh;
+            color: #fafafa;
+            position: relative;
+        }
+
+        /* Subtle grid overlay */
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none; z-index: 0;
+        }
+
+        /* Top radial glow */
+        body::after {
+            content: '';
+            position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+            width: 700px; height: 320px;
+            background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,245,160,0.07) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+        }
+
+        .container { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 20px; }
+
+        header { text-align: center; padding: 28px 0 20px; }
+        header img.lagi-logo {
+            width: 180px; height: auto;
+            filter: drop-shadow(0 0 28px rgba(0,245,160,0.35));
+        }
 
         /* Tabs */
         .tabs { display: flex; gap: 4px; margin-bottom: 0; }
         .tab-btn {
-            flex: 1;
-            padding: 12px 16px;
-            background: rgba(255,255,255,0.3);
-            border: none;
+            flex: 1; padding: 12px 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(0,245,160,0.1);
+            border-bottom: none;
             border-radius: 12px 12px 0 0;
-            color: white;
-            font-size: 0.95em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
+            color: rgba(255,255,255,0.45);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.9em; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
         }
-        .tab-btn.active { background: white; color: #0077b6; }
-        .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.5); }
+        .tab-btn.active { background: #18181b; color: #00f5a0; border-color: rgba(0,245,160,0.18); border-bottom-color: #18181b; }
+        .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.75); }
 
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
         .card {
-            background: white;
+            background: #18181b;
             border-radius: 0 0 16px 16px;
             padding: 28px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(0,245,160,0.12);
+            border-top: none;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.45);
         }
-        .card.rounded-top { border-radius: 16px; margin-top: 16px; }
-        .card h2 { color: #0077b6; margin-bottom: 18px; }
+        .card.rounded-top {
+            border-radius: 16px; margin-top: 16px;
+            border-top: 1px solid rgba(0,245,160,0.12);
+        }
+        .card h2 {
+            color: #00f5a0; margin-bottom: 18px;
+            font-family: 'Space Grotesk', sans-serif;
+        }
 
+        /* Forms */
         .form-group { margin-bottom: 14px; }
-        .form-group label { display: block; font-weight: 600; margin-bottom: 5px; color: #333; }
-        .form-group select, .form-group input, .form-group textarea {
-            width: 100%; padding: 10px 14px; border: 2px solid #e0e0e0;
-            border-radius: 8px; font-size: 1em; transition: border-color 0.2s;
-            font-family: inherit;
+        .form-group label {
+            display: block; font-weight: 600; margin-bottom: 5px;
+            color: #a1a1aa; font-size: 0.88em; letter-spacing: 0.02em;
         }
+        .form-group select, .form-group input, .form-group textarea {
+            width: 100%; padding: 10px 14px;
+            border: 1px solid rgba(0,245,160,0.15);
+            border-radius: 8px; font-size: 1em;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: inherit;
+            background: #0f0f12; color: #fafafa;
+        }
+        .form-group select option { background: #18181b; color: #fafafa; }
         .form-group select:focus, .form-group input:focus, .form-group textarea:focus {
-            border-color: #0077b6; outline: none;
+            border-color: #00f5a0; outline: none;
+            box-shadow: 0 0 0 3px rgba(0,245,160,0.1);
         }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
         button.primary {
-            background: #0077b6; color: white; border: none; padding: 13px 28px;
-            border-radius: 8px; font-size: 1.05em; font-weight: 600;
+            background: #00f5a0; color: #09090b; border: none; padding: 13px 28px;
+            border-radius: 8px; font-size: 1.05em; font-weight: 700;
+            font-family: 'Space Grotesk', sans-serif;
             cursor: pointer; width: 100%; transition: background 0.2s;
+            letter-spacing: 0.04em;
         }
-        button.primary:hover { background: #005f8a; }
-        button.primary:disabled { background: #999; cursor: not-allowed; }
+        button.primary:hover { background: #00c97f; }
+        button.primary:disabled { background: #3f3f46; color: #71717a; cursor: not-allowed; }
 
-        /* Chat */
+        /* Chat (hidden — re-enable via SHOW_CHAT = true) */
         .chat-box {
-            border: 2px solid #e0e0e0; border-radius: 12px;
+            border: 1px solid rgba(0,245,160,0.12); border-radius: 12px;
             height: 320px; overflow-y: auto; padding: 16px;
-            margin-bottom: 14px; background: #fafbfc;
+            margin-bottom: 14px; background: #0f0f12;
         }
         .chat-msg { margin-bottom: 12px; line-height: 1.5; }
         .chat-msg.user { text-align: right; }
@@ -79,93 +135,160 @@
             display: inline-block; padding: 10px 16px; border-radius: 12px;
             max-width: 85%; text-align: left; white-space: pre-line;
         }
-        .chat-msg.user .bubble { background: #0077b6; color: white; }
-        .chat-msg.lagi .bubble { background: #e8f4f8; color: #1a1a2e; }
-        .chat-msg .label { font-size: 0.75em; color: #888; margin-bottom: 2px; }
+        .chat-msg.user .bubble { background: #00f5a0; color: #09090b; font-weight: 500; }
+        .chat-msg.lagi .bubble { background: #27272a; color: #fafafa; }
+        .chat-msg .label { font-size: 0.75em; color: #71717a; margin-bottom: 2px; }
         .chat-input-row { display: flex; gap: 8px; }
         .chat-input-row input { flex: 1; }
         .chat-input-row button { width: auto; padding: 10px 24px; }
+
+        /* Cyclone risk banner */
+        .cyclone-banner {
+            border-radius: 10px; padding: 14px 18px; margin-bottom: 16px;
+            font-weight: 600; display: none; line-height: 1.5;
+        }
+        .cyclone-banner.active { display: block; }
+        .cyclone-banner.low    { background: rgba(0,245,160,0.07); color: #6ee7b7; border: 1px solid rgba(0,245,160,0.2); }
+        .cyclone-banner.elevated { background: rgba(251,191,36,0.07); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); }
+        .cyclone-banner.high   { background: rgba(248,113,113,0.07); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+        .cyclone-banner.extreme{ background: rgba(239,68,68,0.12); color: #ef4444; border: 2px solid rgba(239,68,68,0.35); }
+        .cyclone-banner .risk-label { font-size: 1.05em; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Space Grotesk', sans-serif; }
+        .cyclone-banner .risk-factors { font-weight: 400; font-size: 0.88em; margin-top: 4px; }
 
         /* Forecast result */
         .result { display: none; }
         .result.active { display: block; }
         .forecast-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; }
         .forecast-item {
-            background: #f0f7ff; border-radius: 12px; padding: 16px; text-align: center;
+            background: #111114; border-radius: 12px; padding: 16px; text-align: center;
+            border: 1px solid rgba(0,245,160,0.08);
         }
-        .forecast-item .label { font-size: 0.82em; color: #666; }
-        .forecast-item .value { font-size: 1.7em; font-weight: 700; color: #0077b6; margin: 4px 0; }
-        .forecast-item .ci { font-size: 0.78em; color: #888; }
+        .forecast-item .label { font-size: 0.82em; color: #71717a; }
+        .forecast-item .value { font-size: 1.7em; font-weight: 700; color: #00f5a0; margin: 4px 0; font-family: 'Space Grotesk', sans-serif; }
+        .forecast-item .ci { font-size: 0.78em; color: #52525b; }
 
         /* Certainty bar */
         .certainty-bar {
-            background: #f0f0f0; border-radius: 20px; height: 28px;
+            background: #27272a; border-radius: 20px; height: 28px;
             overflow: hidden; margin: 10px 0; position: relative;
         }
         .certainty-fill {
             height: 100%; border-radius: 20px;
             transition: width 0.5s ease; display: flex;
             align-items: center; justify-content: center;
-            color: white; font-weight: 700; font-size: 0.85em;
+            color: #09090b; font-weight: 700; font-size: 0.85em;
+            font-family: 'Space Grotesk', sans-serif;
         }
-        .certainty-fill.high { background: linear-gradient(90deg, #2ecc71, #27ae60); }
-        .certainty-fill.moderate { background: linear-gradient(90deg, #f39c12, #e67e22); }
-        .certainty-fill.developing { background: linear-gradient(90deg, #e74c3c, #c0392b); }
+        .certainty-fill.high       { background: linear-gradient(90deg, #00f5a0, #00c97f); }
+        .certainty-fill.moderate   { background: linear-gradient(90deg, #fbbf24, #d97706); }
+        .certainty-fill.developing { background: linear-gradient(90deg, #f87171, #ef4444); }
 
         /* Disclaimer */
         .disclaimer {
-            background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px;
-            padding: 12px 16px; font-size: 0.88em; margin-top: 14px; color: #6d4c00;
-            line-height: 1.5;
+            background: rgba(0,245,160,0.04); border: 1px solid rgba(0,245,160,0.1);
+            border-radius: 8px; padding: 12px 16px; font-size: 0.88em;
+            margin-top: 14px; color: #a1a1aa; line-height: 1.5;
+        }
+
+        /* Lagi says commentary */
+        .lagi-commentary {
+            display: none;
+            margin: 0 0 20px;
+            padding: 16px 18px;
+            background: #0f0f12;
+            border-left: 3px solid #00f5a0;
+            border-radius: 0 12px 12px 0;
+            border-top: 1px solid rgba(0,245,160,0.1);
+            border-right: 1px solid rgba(0,245,160,0.1);
+            border-bottom: 1px solid rgba(0,245,160,0.1);
+        }
+        .lagi-commentary.active { display: flex; gap: 14px; align-items: flex-start; }
+        .lagi-commentary .lagi-avatar {
+            width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+            object-fit: cover; filter: drop-shadow(0 0 8px rgba(0,245,160,0.4));
+        }
+        .lagi-commentary .commentary-body { flex: 1; }
+        .lagi-commentary .commentary-label {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.72em; font-weight: 700; color: #00f5a0;
+            text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 5px;
+        }
+        .lagi-commentary .commentary-text {
+            font-style: italic; color: #d4d4d8; line-height: 1.65; font-size: 0.94em;
+        }
+
+        /* Source message */
+        .source-msg {
+            background: rgba(0,245,160,0.05);
+            border: 1px solid rgba(0,245,160,0.12);
+            border-radius: 8px; padding: 10px 14px;
+            margin-bottom: 16px; font-size: 0.9em;
+            color: #6ee7b7; font-weight: 500;
         }
 
         /* FAQ */
-        .faq-item { border-bottom: 1px solid #eee; padding: 14px 0; }
+        .faq-item { border-bottom: 1px solid rgba(255,255,255,0.06); padding: 14px 0; }
         .faq-item:last-child { border-bottom: none; }
         .faq-q {
-            font-weight: 700; color: #0077b6; cursor: pointer;
+            font-weight: 700; color: #00f5a0; cursor: pointer;
             display: flex; justify-content: space-between; align-items: center;
+            font-family: 'Space Grotesk', sans-serif;
         }
         .faq-q::after { content: '+'; font-size: 1.3em; transition: transform 0.2s; }
-        .faq-q.open::after { content: '−'; }
-        .faq-a { padding-top: 8px; color: #555; line-height: 1.6; display: none; }
+        .faq-q.open::after { content: '\2212'; }
+        .faq-a { padding-top: 8px; color: #a1a1aa; line-height: 1.6; display: none; }
         .faq-a.open { display: block; }
 
         /* Info section */
         .info-section { margin-bottom: 24px; }
-        .info-section h3 { color: #0077b6; margin-bottom: 8px; font-size: 1.1em; }
-        .info-section p { color: #555; line-height: 1.6; }
+        .info-section h3 { color: #00f5a0; margin-bottom: 8px; font-size: 1.1em; font-family: 'Space Grotesk', sans-serif; }
+        .info-section p { color: #a1a1aa; line-height: 1.6; }
 
-        .error { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px;
-                 padding: 12px; color: #721c24; display: none; margin-top: 12px; }
+        .error {
+            background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+            border-radius: 8px; padding: 12px; color: #f87171;
+            display: none; margin-top: 12px;
+        }
         .error.active { display: block; }
 
-        footer { text-align: center; padding: 18px; color: rgba(255,255,255,0.8); font-size: 0.88em; }
-        footer a { color: white; }
+        footer { text-align: center; padding: 20px; color: rgba(255,255,255,0.25); font-size: 0.85em; }
+        footer a { color: rgba(0,245,160,0.6); text-decoration: none; }
+        footer a:hover { color: #00f5a0; }
+
+
+        /* Day cards */
+        .day-card {
+            min-width: 110px; background: #111114; border-radius: 12px; padding: 14px;
+            text-align: center; flex-shrink: 0;
+            border: 1px solid rgba(0,245,160,0.08);
+        }
+        .day-card .day-name { font-weight: 700; color: #00f5a0; font-size: 0.9em; font-family: 'Space Grotesk', sans-serif; }
+        .day-card .day-date { font-size: 0.75em; color: #52525b; }
+        .day-card .day-temp { font-size: 1.4em; font-weight: 700; color: #00f5a0; margin: 6px 0; font-family: 'Space Grotesk', sans-serif; }
+        .day-card .day-detail { font-size: 0.78em; color: #71717a; }
 
         @media (max-width: 600px) {
             .form-row { grid-template-columns: 1fr; }
             .forecast-grid { grid-template-columns: 1fr; }
             .tabs { flex-wrap: wrap; }
-            .tab-btn { font-size: 0.85em; padding: 10px 8px; }
+            .tab-btn { font-size: 0.82em; padding: 10px 8px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Lagi</h1>
-            <p>Fiji Weather Guardian</p>
+            <img src="/assets/lagi-logo.png" alt="Lagi — Fiji Weather Guardian" class="lagi-logo">
         </header>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('chat')">Chat with Lagi</button>
-            <button class="tab-btn" onclick="switchTab('forecast')">Forecast</button>
-            <button class="tab-btn" onclick="switchTab('info')">Information on Lagi</button>
+            <button id="tab-btn-chat" class="tab-btn" onclick="switchTab('chat', this)">Chat with Lagi</button>
+            <button id="tab-btn-forecast" class="tab-btn" onclick="switchTab('forecast', this)">Forecast</button>
+            <button id="tab-btn-info" class="tab-btn" onclick="switchTab('info', this)">Information on Lagi</button>
         </div>
 
-        <!-- Tab 1: Chat -->
-        <div id="tab-chat" class="tab-content active">
+        <!-- Tab 1: Chat (hidden until SHOW_CHAT = true) -->
+        <div id="tab-chat" class="tab-content">
             <div class="card">
                 <h2>Ask Lagi Anything</h2>
                 <div class="form-row" style="margin-bottom:14px">
@@ -188,12 +311,12 @@
                 <div class="chat-box" id="chatBox">
                     <div class="chat-msg lagi">
                         <div class="label">Lagi</div>
-                        <div class="bubble">Bula! I'm Lagi, your Fiji Weather Guardian. Ask me anything about the weather — "Will it rain today?", "How hot will it get?", "Is it safe to go fishing?" — I'm here to help! Just type below.</div>
+                        <div class="bubble">Bula! I'm Lagi, your Fiji Weather Guardian. Ask me anything about the weather — "Will it rain today?", "How hot will it get?", "Is it safe to go fishing?" — I'm here to help!</div>
                     </div>
                 </div>
-                <form id="chatForm" class="chat-input-row">
-                    <input type="text" id="chatInput" placeholder="e.g. Will it rain this afternoon?" required>
-                    <button type="submit" class="primary" style="border-radius:8px">Send</button>
+                <form id="chatForm" class="chat-input-row" autocomplete="off">
+                    <input type="text" id="chatInput" placeholder="e.g. Will it rain this afternoon?" required maxlength="500">
+                    <button type="submit" class="primary" style="border-radius:8px;width:auto;padding:10px 24px">Send</button>
                 </form>
             </div>
         </div>
@@ -202,48 +325,21 @@
         <div id="tab-forecast" class="tab-content">
             <div class="card">
                 <h2>Get Adjusted Forecast</h2>
-                <form id="forecastForm">
-                    <div class="form-group">
-                        <label for="location">Location</label>
-                        <select id="location" required>
-                            <option value="Suva">Suva</option>
-                            <option value="Nadi">Nadi</option>
-                            <option value="Labasa">Labasa</option>
-                            <option value="Lautoka">Lautoka</option>
-                        </select>
-                    </div>
+                <p style="color:#71717a;margin-bottom:16px;font-size:0.95em">Select a location and Lagi will pull live weather predictions from multiple sources, then apply smart corrections tuned for Fiji's climate.</p>
+                <form id="forecastForm" autocomplete="off">
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="temperature">Temperature (C)</label>
-                            <input type="number" id="temperature" value="28" step="0.1" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="rain">Rain Probability (%)</label>
-                            <input type="number" id="rain" value="60" min="0" max="100" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="wind">Wind (km/h)</label>
-                            <input type="number" id="wind" value="15" step="0.1" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="humidity">Humidity (%)</label>
-                            <input type="number" id="humidity" value="75" min="0" max="100" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="enso">ENSO Phase</label>
-                            <select id="enso">
-                                <option value="Neutral">Neutral</option>
-                                <option value="Nino">El Nino</option>
-                                <option value="Nina">La Nina</option>
+                            <label for="location">Location</label>
+                            <select id="location" required>
+                                <option value="Suva">Suva</option>
+                                <option value="Nadi">Nadi</option>
+                                <option value="Labasa">Labasa</option>
+                                <option value="Lautoka">Lautoka</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label>&nbsp;</label>
-                            <button type="submit" class="primary">Get Forecast</button>
+                            <button type="submit" class="primary" id="forecastBtn">Get Forecast</button>
                         </div>
                     </div>
                 </form>
@@ -252,40 +348,103 @@
             <div class="error" id="errorBox"></div>
 
             <div class="card rounded-top result" id="resultCard">
-                <h2 id="resultTitle">Bula!</h2>
-                <div class="forecast-grid">
-                    <div class="forecast-item">
-                        <div class="label">Temperature</div>
-                        <div class="value" id="tempValue">--</div>
-                        <div class="ci" id="tempCI">95% CI: --</div>
-                    </div>
-                    <div class="forecast-item">
-                        <div class="label">Rain Probability</div>
-                        <div class="value" id="rainValue">--</div>
-                        <div class="ci" id="rainCI">95% CI: --</div>
-                    </div>
-                    <div class="forecast-item">
-                        <div class="label">Temperature Correction</div>
-                        <div class="value" id="deltaTValue">--</div>
-                        <div class="ci">applied to raw forecast</div>
-                    </div>
-                    <div class="forecast-item">
-                        <div class="label">Wind</div>
-                        <div class="value" id="windValue">--</div>
-                        <div class="ci">km/h</div>
+                <h2 id="resultTitle" style="font-family:'Space Grotesk',sans-serif">Bula!</h2>
+
+                <!-- Cyclone risk banner -->
+                <div class="cyclone-banner" id="cycloneBanner">
+                    <div class="risk-label" id="cycloneRiskLabel"></div>
+                    <div class="risk-factors" id="cycloneFactors"></div>
+                </div>
+
+                <!-- Source attribution -->
+                <div class="source-msg" id="sourceMessage"></div>
+
+                <!-- Lagi says commentary -->
+                <div class="lagi-commentary" id="lagiCommentary">
+                    <img src="/assets/lagi-logo.png" alt="Lagi" class="lagi-avatar">
+                    <div class="commentary-body">
+                        <div class="commentary-label">Lagi says</div>
+                        <div class="commentary-text" id="lagiCommentaryText"></div>
                     </div>
                 </div>
-                <div>
-                    <label style="font-weight:600;color:#333">Prediction Certainty</label>
+
+                <!-- Today's Summary -->
+                <div style="margin-bottom:14px">
+                    <div style="font-weight:700;color:#00f5a0;font-size:1em;margin-bottom:10px;font-family:'Space Grotesk',sans-serif;letter-spacing:0.02em">Today's Summary</div>
+                    <div class="forecast-grid" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr">
+                        <div class="forecast-item">
+                            <div class="label">Temperature</div>
+                            <div class="value" id="tempValue" style="font-size:1.5em">--</div>
+                            <div class="ci" id="tempCI">95% CI: --</div>
+                        </div>
+                        <div class="forecast-item">
+                            <div class="label">Rain</div>
+                            <div class="value" id="rainValue" style="font-size:1.5em">--</div>
+                            <div class="ci" id="rainCI">95% CI: --</div>
+                        </div>
+                        <div class="forecast-item">
+                            <div class="label">Rainfall</div>
+                            <div class="value" id="precipValue" style="font-size:1.5em">--</div>
+                            <div class="ci">mm expected</div>
+                        </div>
+                        <div class="forecast-item">
+                            <div class="label">Wind</div>
+                            <div class="value" id="windValue" style="font-size:1.5em">--</div>
+                            <div class="ci">km/h</div>
+                        </div>
+                        <div class="forecast-item">
+                            <div class="label">Temp Correction</div>
+                            <div class="value" id="deltaTValue" style="font-size:1.5em">--</div>
+                            <div class="ci">applied delta</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Raw forecast reference -->
+                <div style="margin-bottom:14px">
+                    <div style="font-weight:600;color:#52525b;font-size:0.8em;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Raw predictions from weather sites</div>
+                    <div class="forecast-grid" style="grid-template-columns:1fr 1fr 1fr">
+                        <div class="forecast-item" style="opacity:0.6">
+                            <div class="label">Temperature</div>
+                            <div class="value" id="rawTempValue" style="font-size:1.3em">--</div>
+                        </div>
+                        <div class="forecast-item" style="opacity:0.6">
+                            <div class="label">Rain Probability</div>
+                            <div class="value" id="rawRainValue" style="font-size:1.3em">--</div>
+                        </div>
+                        <div class="forecast-item" style="opacity:0.6">
+                            <div class="label">Precipitation</div>
+                            <div class="value" id="rawPrecipValue" style="font-size:1.3em">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7-Day Charts -->
+                <div style="margin-top:20px" id="tempChartContainer">
+                    <h3 style="color:#00f5a0;margin-bottom:12px;font-family:'Space Grotesk',sans-serif">7-Day Temperature Forecast</h3>
+                    <canvas id="tempChart" height="200"></canvas>
+                </div>
+                <div style="margin-top:20px" id="rainChartContainer">
+                    <h3 style="color:#00f5a0;margin-bottom:12px;font-family:'Space Grotesk',sans-serif">7-Day Rain &amp; Precipitation</h3>
+                    <canvas id="rainChart" height="200"></canvas>
+                </div>
+
+                <!-- 7-Day Day Cards -->
+                <div style="margin-top:20px" id="dayCardsContainer">
+                    <h3 style="color:#00f5a0;margin-bottom:12px;font-family:'Space Grotesk',sans-serif">Daily Breakdown</h3>
+                    <div id="dayCards" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px"></div>
+                </div>
+
+                <div style="margin-top:18px">
+                    <label style="font-weight:600;color:#a1a1aa;font-size:0.88em">Prediction Certainty</label>
                     <div class="certainty-bar">
                         <div class="certainty-fill moderate" id="forecastCertainty" style="width:50%">50%</div>
                     </div>
                 </div>
                 <div class="disclaimer" id="forecastDisclaimer">
                     Based on the analysis, the certainty of our prediction is 50%.
-                    Weather patterns in the Pacific can change rapidly due to local microclimates
-                    and climate variability — always stay prepared and check official FMS warnings
-                    for safety-critical decisions.
+                    Weather patterns in the Pacific can change rapidly — always stay prepared
+                    and check official FMS warnings for safety-critical decisions.
                 </div>
             </div>
         </div>
@@ -306,7 +465,7 @@
                     <div class="certainty-bar">
                         <div class="certainty-fill moderate" id="infoCertainty" style="width:50%">50%</div>
                     </div>
-                    <p id="infoCertaintyNote" style="margin-top:6px;font-size:0.9em;color:#666">Loading certainty data...</p>
+                    <p id="infoCertaintyNote" style="margin-top:6px;font-size:0.9em;color:#71717a">Loading certainty data...</p>
                 </div>
 
                 <div class="info-section">
@@ -338,7 +497,7 @@
                         </div>
                         <div class="faq-item">
                             <div class="faq-q" onclick="toggleFaq(this)">Can Lagi help with farming or fishing decisions?</div>
-                            <div class="faq-a">Absolutely! Ask questions like "will it rain this afternoon?" or "how many hours of sun before rain?"</div>
+                            <div class="faq-a">Absolutely! Lagi's auto-generated briefing covers rain chance, wind conditions, and practical daily advice tuned to Fijian life.</div>
                         </div>
                         <div class="faq-item">
                             <div class="faq-q" onclick="toggleFaq(this)">Is Lagi free?</div>
@@ -350,7 +509,7 @@
                         </div>
                         <div class="faq-item">
                             <div class="faq-q" onclick="toggleFaq(this)">Who built Lagi?</div>
-                            <div class="faq-a">Part of the ambitious "100 Agents in 100 Days for Fiji and the Pacific" project.</div>
+                            <div class="faq-a">Part of the ambitious "100 Agents in 100 Days for Fiji and the Pacific" project by RenLesApps.</div>
                         </div>
                     </div>
                 </div>
@@ -358,153 +517,363 @@
         </div>
 
         <footer>
-            <p>Lagi &mdash; Fiji Weather Guardian | <a href="https://github.com/renles/lagi-weather">GitHub</a> | renles.com</p>
-            <p>Vinaka vakalevu!</p>
+            <p>Lagi &mdash; Fiji Weather Guardian &nbsp;|&nbsp; <a href="https://www.renles.com" rel="noopener noreferrer">renles.com</a></p>
+            <p style="margin-top:4px">Vinaka vakalevu!</p>
         </footer>
     </div>
 
     <script>
-        const API_URL = window.location.origin;
+        'use strict';
 
-        // Tab switching
-        function switchTab(name) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('tab-' + name).classList.add('active');
-            event.target.classList.add('active');
+        // ─── Feature flags ───────────────────────────────────────────────────
+        const SHOW_CHAT = false; // flip to true when Chat is ready to re-enable
+
+        // ─── Constants ───────────────────────────────────────────────────────
+        const API_URL = window.location.origin;
+        const FETCH_TIMEOUT_MS = 20000;
+
+        // ─── Helpers ─────────────────────────────────────────────────────────
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
+        function fetchWithTimeout(url, options) {
+            var ctrl = new AbortController();
+            var id = setTimeout(function() { ctrl.abort(); }, FETCH_TIMEOUT_MS);
+            return fetch(url, Object.assign({}, options, { signal: ctrl.signal }))
+                .finally(function() { clearTimeout(id); });
+        }
+
+        // ─── Chart defaults (dark theme) ─────────────────────────────────────
+        Chart.defaults.color = '#71717a';
+        Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+
+        // ─── Startup ─────────────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', function() {
+            // Hide chat if not enabled
+            if (!SHOW_CHAT) {
+                var chatBtn = document.getElementById('tab-btn-chat');
+                var chatTab = document.getElementById('tab-chat');
+                if (chatBtn) chatBtn.style.display = 'none';
+                if (chatTab) chatTab.style.display = 'none';
+            }
+
+            // Default to Forecast tab — no auth gate, open access
+            var forecastBtn = document.getElementById('tab-btn-forecast');
+            switchTab('forecast', forecastBtn);
+
+            // Load certainty
+            loadCertainty();
+        });
+
+        // ─── Tab switching ────────────────────────────────────────────────────
+        function switchTab(name, targetEl) {
+            document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            var content = document.getElementById('tab-' + name);
+            if (content) content.classList.add('active');
+            if (targetEl) {
+                targetEl.classList.add('active');
+            } else {
+                var btn = document.getElementById('tab-btn-' + name);
+                if (btn) btn.classList.add('active');
+            }
             if (name === 'info') loadCertainty();
         }
 
-        // FAQ toggle
+        // ─── FAQ toggle ───────────────────────────────────────────────────────
         function toggleFaq(el) {
             el.classList.toggle('open');
             el.nextElementSibling.classList.toggle('open');
         }
 
-        // Certainty bar update
+        // ─── Certainty bar ────────────────────────────────────────────────────
         function updateCertaintyBar(el, pct, level) {
+            if (!el) return;
             el.style.width = pct + '%';
             el.textContent = pct + '%';
             el.className = 'certainty-fill ' + (level || (pct >= 75 ? 'high' : pct >= 50 ? 'moderate' : 'developing'));
         }
 
-        // Load certainty from API
         async function loadCertainty() {
             try {
-                const res = await fetch(API_URL + '/certainty');
+                var res = await fetchWithTimeout(API_URL + '/certainty');
                 if (res.ok) {
-                    const data = await res.json();
+                    var data = await res.json();
                     updateCertaintyBar(document.getElementById('infoCertainty'), data.certainty_pct, data.level);
                     updateCertaintyBar(document.getElementById('chatCertainty'), data.certainty_pct, data.level);
-                    document.getElementById('infoCertaintyNote').textContent = data.note;
+                    var noteEl = document.getElementById('infoCertaintyNote');
+                    if (noteEl) noteEl.textContent = data.note || '';
                 }
             } catch (e) { /* silently fail */ }
         }
 
-        // Chat form
-        document.getElementById('chatForm').addEventListener('submit', async (e) => {
+        // ─── Chat form (kept for when SHOW_CHAT = true) ───────────────────────
+        document.getElementById('chatForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const input = document.getElementById('chatInput');
-            const question = input.value.trim();
-            if (!question) return;
+            if (!SHOW_CHAT) return;
+            var input = document.getElementById('chatInput');
+            var question = input.value.trim();
+            if (!question || question.length > 500) return;
 
-            const chatBox = document.getElementById('chatBox');
-            const location = document.getElementById('chatLocation').value;
-
-            // Add user message
-            chatBox.innerHTML += `<div class="chat-msg user"><div class="label">You</div><div class="bubble">${escapeHtml(question)}</div></div>`;
+            var chatBox = document.getElementById('chatBox');
+            var location = document.getElementById('chatLocation').value;
             input.value = '';
-            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // Reset to single exchange view on each new chat
+            chatBox.innerHTML =
+                '<div class="chat-msg lagi"><div class="label">Lagi</div>' +
+                '<div class="bubble">Bula! I\'m Lagi, your Fiji Weather Guardian.</div></div>';
 
             try {
-                const res = await fetch(API_URL + '/chat', {
+                var res = await fetchWithTimeout(API_URL + '/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ question, location }),
+                    body: JSON.stringify({ question: question, location: location }),
                 });
-
                 if (!res.ok) throw new Error('Request failed');
-                const data = await res.json();
+                var data = await res.json();
 
-                chatBox.innerHTML += `<div class="chat-msg lagi"><div class="label">Lagi</div><div class="bubble">${escapeHtml(data.reply)}</div></div>`;
+                chatBox.innerHTML =
+                    '<div class="chat-msg lagi"><div class="label">Lagi</div>' +
+                    '<div class="bubble">Bula! I\'m Lagi, your Fiji Weather Guardian.</div></div>' +
+                    '<div class="chat-msg user"><div class="label">You</div>' +
+                    '<div class="bubble">' + escapeHtml(question) + '</div></div>' +
+                    '<div class="chat-msg lagi"><div class="label">Lagi</div>' +
+                    '<div class="bubble">' + escapeHtml(data.reply) + '</div></div>';
 
                 if (data.certainty) {
                     updateCertaintyBar(document.getElementById('chatCertainty'), data.certainty.certainty_pct, data.certainty.level);
                 }
             } catch (err) {
-                chatBox.innerHTML += `<div class="chat-msg lagi"><div class="label">Lagi</div><div class="bubble">Sorry, I'm having trouble connecting right now. Please try again in a moment!</div></div>`;
+                chatBox.innerHTML =
+                    '<div class="chat-msg lagi"><div class="label">Lagi</div>' +
+                    '<div class="bubble">Bula! I\'m Lagi, your Fiji Weather Guardian.</div></div>' +
+                    '<div class="chat-msg lagi"><div class="label">Lagi</div>' +
+                    '<div class="bubble">Sorry, I\'m having trouble connecting right now. Please try again in a moment!</div></div>';
             }
             chatBox.scrollTop = chatBox.scrollHeight;
         });
 
-        // Forecast form
-        document.getElementById('forecastForm').addEventListener('submit', async (e) => {
+        // ─── Forecast form ────────────────────────────────────────────────────
+        document.getElementById('forecastForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const btn = e.target.querySelector('button');
-            btn.disabled = true; btn.textContent = 'Loading...';
+            var btn = document.getElementById('forecastBtn');
+            btn.disabled = true;
+            btn.textContent = 'Fetching from weather sites...';
 
-            const errorBox = document.getElementById('errorBox');
-            const resultCard = document.getElementById('resultCard');
+            var errorBox = document.getElementById('errorBox');
+            var resultCard = document.getElementById('resultCard');
             errorBox.classList.remove('active');
             resultCard.classList.remove('active');
 
-            const body = {
-                location: document.getElementById('location').value,
-                temperature: parseFloat(document.getElementById('temperature').value),
-                rain_probability: parseFloat(document.getElementById('rain').value),
-                wind: parseFloat(document.getElementById('wind').value),
-                humidity: parseFloat(document.getElementById('humidity').value),
-                enso_phase: document.getElementById('enso').value,
-            };
+            var body = { location: document.getElementById('location').value };
 
             try {
-                const res = await fetch(API_URL + '/forecast', {
+                var res = await fetchWithTimeout(API_URL + '/forecast', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body),
                 });
-                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Request failed'); }
+                if (!res.ok) {
+                    var errData = await res.json();
+                    throw new Error(errData.detail || 'Request failed');
+                }
 
-                const data = await res.json();
+                var data = await res.json();
 
-                document.getElementById('resultTitle').textContent = data.bula;
+                document.getElementById('resultTitle').textContent = data.bula || ('Bula! Forecast for ' + data.location);
+
+                // Cyclone risk banner
+                var banner = document.getElementById('cycloneBanner');
+                var cr = data.cyclone_risk;
+                if (cr) {
+                    banner.className = 'cyclone-banner active ' + cr.risk_level;
+                    var icons = { low: '\u2705', elevated: '\u26A0\uFE0F', high: '\u26A0\uFE0F', extreme: '\uD83C\uDF00' };
+                    document.getElementById('cycloneRiskLabel').textContent =
+                        (icons[cr.risk_level] || '') + ' Cyclone Risk: ' + cr.risk_level.toUpperCase();
+                    var factorsText = cr.factors && cr.factors.length ? cr.factors.join(' \u2022 ') : 'No elevated risk factors';
+                    if (cr.risk_level === 'high' || cr.risk_level === 'extreme') {
+                        factorsText += ' \u2014 Check met.gov.fj for official warnings';
+                    }
+                    document.getElementById('cycloneFactors').textContent = factorsText;
+                } else {
+                    banner.className = 'cyclone-banner';
+                }
+
+                // Source attribution
+                document.getElementById('sourceMessage').textContent = data.source_message || '';
+
+                // Lagi says commentary
+                var commentaryEl = document.getElementById('lagiCommentary');
+                var commentaryTextEl = document.getElementById('lagiCommentaryText');
+                if (data.commentary) {
+                    commentaryTextEl.textContent = data.commentary;
+                    commentaryEl.classList.add('active');
+                } else {
+                    commentaryEl.classList.remove('active');
+                }
+
+                // Raw predictions
+                var raw = data.raw_forecast || {};
+                document.getElementById('rawTempValue').textContent = raw.temperature != null ? raw.temperature + '\u00B0C' : '--';
+                document.getElementById('rawRainValue').textContent = raw.rain_probability != null ? raw.rain_probability + '%' : '--';
+                document.getElementById('rawPrecipValue').textContent = raw.precip_mm != null ? raw.precip_mm + ' mm' : '--';
+
+                // Adjusted summary
                 document.getElementById('tempValue').textContent = data.monte_carlo.T_mean + '\u00B0C';
                 document.getElementById('tempCI').textContent =
                     '95% CI: ' + data.monte_carlo.T_95_CI[0] + '\u00B0C \u2013 ' + data.monte_carlo.T_95_CI[1] + '\u00B0C';
                 document.getElementById('rainValue').textContent = data.monte_carlo.P_mean + '%';
                 document.getElementById('rainCI').textContent =
                     '95% CI: ' + data.monte_carlo.P_95_CI[0] + '% \u2013 ' + data.monte_carlo.P_95_CI[1] + '%';
+                document.getElementById('precipValue').textContent =
+                    data.adjusted_forecast && data.adjusted_forecast.precip_mm != null
+                        ? data.adjusted_forecast.precip_mm + ' mm'
+                        : (raw.precip_mm != null ? raw.precip_mm + ' mm' : '--');
                 document.getElementById('deltaTValue').textContent =
                     (data.corrections.static_delta_T > 0 ? '+' : '') + data.corrections.static_delta_T + '\u00B0C';
                 document.getElementById('windValue').textContent = data.adjusted_forecast.wind;
 
-                // Certainty
-                const certRes = await fetch(API_URL + '/certainty');
-                if (certRes.ok) {
-                    const cert = await certRes.json();
-                    updateCertaintyBar(document.getElementById('forecastCertainty'), cert.certainty_pct, cert.level);
-                    document.getElementById('forecastDisclaimer').textContent =
-                        'Based on the analysis, the certainty of our prediction is ' + cert.certainty_pct +
-                        '%. Weather patterns in the Pacific can change rapidly due to local microclimates and climate variability \u2014 always stay prepared and check official FMS warnings for safety-critical decisions.';
+                // 7-Day charts
+                if (data.daily_forecast && data.daily_forecast.length > 0) {
+                    var days = data.daily_forecast;
+                    var labels = days.map(function(d) {
+                        var dt = new Date(d.date + 'T00:00:00');
+                        return dt.toLocaleDateString('en-US', { weekday: 'short' });
+                    });
+
+                    var tempCtx = document.getElementById('tempChart').getContext('2d');
+                    if (window._tempChart) window._tempChart.destroy();
+                    window._tempChart = new Chart(tempCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Adjusted Temp',
+                                    data: days.map(function(d) { return d.temperature_adjusted; }),
+                                    borderColor: '#00f5a0',
+                                    backgroundColor: 'rgba(0,245,160,0.08)',
+                                    fill: true,
+                                    tension: 0.3,
+                                    borderWidth: 2.5,
+                                    pointRadius: 5,
+                                    pointBackgroundColor: '#00f5a0',
+                                },
+                                {
+                                    label: 'Raw Temp',
+                                    data: days.map(function(d) { return d.temperature; }),
+                                    borderColor: '#52525b',
+                                    borderDash: [5, 5],
+                                    borderWidth: 1.5,
+                                    pointRadius: 3,
+                                    pointBackgroundColor: '#52525b',
+                                    fill: false,
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { position: 'top', labels: { color: '#a1a1aa' } },
+                                tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y + '\u00B0C'; } } }
+                            },
+                            scales: {
+                                x: { ticks: { color: '#71717a' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+                                y: { title: { display: true, text: 'Temperature (\u00B0C)', color: '#71717a' }, ticks: { color: '#71717a' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+                            }
+                        }
+                    });
+
+                    var rainCtx = document.getElementById('rainChart').getContext('2d');
+                    if (window._rainChart) window._rainChart.destroy();
+                    window._rainChart = new Chart(rainCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Rain Probability (%)',
+                                    data: days.map(function(d) { return d.rain_probability_adjusted || d.rain_probability; }),
+                                    backgroundColor: 'rgba(0,245,160,0.45)',
+                                    borderColor: '#00f5a0',
+                                    borderWidth: 1,
+                                    yAxisID: 'y',
+                                },
+                                {
+                                    label: 'Rainfall (mm)',
+                                    data: days.map(function(d) { return d.precip_mm; }),
+                                    backgroundColor: 'rgba(0,180,216,0.45)',
+                                    borderColor: '#00b4d8',
+                                    borderWidth: 1,
+                                    yAxisID: 'y1',
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { position: 'top', labels: { color: '#a1a1aa' } } },
+                            scales: {
+                                x: { ticks: { color: '#71717a' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+                                y: { type: 'linear', position: 'left', title: { display: true, text: 'Rain Probability (%)', color: '#71717a' }, ticks: { color: '#71717a' }, grid: { color: 'rgba(255,255,255,0.04)' }, min: 0, max: 100 },
+                                y1: { type: 'linear', position: 'right', title: { display: true, text: 'Rainfall (mm)', color: '#71717a' }, ticks: { color: '#71717a' }, min: 0, grid: { drawOnChartArea: false } }
+                            }
+                        }
+                    });
+
+                    var dayCardsEl = document.getElementById('dayCards');
+                    dayCardsEl.innerHTML = days.map(function(d) {
+                        var dt = new Date(d.date + 'T00:00:00');
+                        var dayName = dt.toLocaleDateString('en-US', { weekday: 'short' });
+                        var dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        var t = d.temperature_adjusted != null ? d.temperature_adjusted : d.temperature;
+                        var p = d.rain_probability_adjusted != null ? d.rain_probability_adjusted : d.rain_probability;
+                        var pmm = d.precip_mm != null ? d.precip_mm + ' mm' : '--';
+                        var w = d.wind != null ? d.wind + ' km/h' : '--';
+                        return '<div class="day-card">' +
+                            '<div class="day-name">' + escapeHtml(dayName) + '</div>' +
+                            '<div class="day-date">' + escapeHtml(dateStr) + '</div>' +
+                            '<div class="day-temp">' + (t != null ? t + '\u00B0' : '--') + '</div>' +
+                            '<div class="day-detail">' + (p != null ? p + '% rain' : '--') + '</div>' +
+                            '<div class="day-detail">' + escapeHtml(pmm) + '</div>' +
+                            '<div class="day-detail">' + escapeHtml(w) + '</div>' +
+                            '</div>';
+                    }).join('');
+
+                    document.getElementById('tempChartContainer').style.display = 'block';
+                    document.getElementById('rainChartContainer').style.display = 'block';
+                    document.getElementById('dayCardsContainer').style.display = 'block';
+                } else {
+                    document.getElementById('tempChartContainer').style.display = 'none';
+                    document.getElementById('rainChartContainer').style.display = 'none';
+                    document.getElementById('dayCardsContainer').style.display = 'none';
                 }
+
+                // Certainty
+                try {
+                    var certRes = await fetchWithTimeout(API_URL + '/certainty');
+                    if (certRes.ok) {
+                        var cert = await certRes.json();
+                        updateCertaintyBar(document.getElementById('forecastCertainty'), cert.certainty_pct, cert.level);
+                        var disclaimer = document.getElementById('forecastDisclaimer');
+                        disclaimer.textContent =
+                            'Based on the analysis, the certainty of our prediction is ' + cert.certainty_pct +
+                            '%. Weather patterns in the Pacific can change rapidly due to local microclimates and climate variability \u2014 always stay prepared and check official FMS warnings for safety-critical decisions.';
+                    }
+                } catch(e) { /* silently fail */ }
 
                 resultCard.classList.add('active');
             } catch (err) {
-                errorBox.textContent = 'Error: ' + err.message;
+                errorBox.textContent = 'Error: ' + escapeHtml(err.message || 'Unknown error');
                 errorBox.classList.add('active');
             } finally {
-                btn.disabled = false; btn.textContent = 'Get Forecast';
+                btn.disabled = false;
+                btn.textContent = 'Get Forecast';
             }
         });
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Load certainty on page load
-        loadCertainty();
     </script>
 </body>
 </html>

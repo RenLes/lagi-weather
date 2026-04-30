@@ -376,13 +376,18 @@ async def get_forecast(req: ForecastRequest):
 
     if ensemble["temperature"] is None:
         raise HTTPException(503, "Could not fetch forecasts from any source. Please try again shortly.")
+    if ensemble["rain_probability"] is None:
+        raise HTTPException(
+            503,
+            "Rain forecast unavailable from all sources right now. Please try again shortly.",
+        )
 
     season = engine.get_season(datetime.utcnow().month)
 
     result = engine.correct_forecast(
         location=req.location,
         T_f=ensemble["temperature"],
-        P_f=ensemble["rain_probability"] or 50.0,
+        P_f=ensemble["rain_probability"],
         W_f=ensemble["wind"] or 15.0,
         humidity_f=ensemble["humidity"] or 75.0,
         season=season,
@@ -487,12 +492,42 @@ async def chat(req: ChatRequest, user: str = Depends(verify_token)):
     try:
         ensemble_data = engine.fetch_ensemble_forecast(req.location)
         ensemble = ensemble_data["ensemble"]
-        T_f = ensemble["temperature"] or 28.0
-        P_f = ensemble["rain_probability"] or 55.0
-        W_f = ensemble["wind"] or 15.0
-        H_f = ensemble["humidity"] or 75.0
     except Exception:
-        T_f, P_f, W_f, H_f = 28.0, 55.0, 15.0, 75.0
+        ensemble = None
+
+    # Hard requirement: a real rain reading from the ensemble. Silent fallbacks here
+    # were the source of the perma-rain bug — a missing value would default to 55%
+    # and the LLM would dutifully report "good chance of rain" on dry days.
+    if not ensemble or ensemble.get("rain_probability") is None:
+        T_known = ensemble.get("temperature") if ensemble else None
+        W_known = ensemble.get("wind") if ensemble else None
+        parts = [
+            f"Bula! I can't get a confident rain reading for {req.location} right now — "
+            "all my forecast sources are quiet on that."
+        ]
+        if T_known is not None:
+            parts.append(f"Temperature is around {T_known:.1f}°C.")
+        if W_known is not None:
+            parts.append(f"Wind is around {W_known:.0f} km/h.")
+        parts.append(
+            "Try again in a bit, and always check official Fiji Met Service warnings "
+            "for safety-critical decisions."
+        )
+        return {
+            "question": req.question,
+            "reply": " ".join(parts),
+            "location": req.location,
+            "forecast": None,
+            "cyclone_risk": None,
+            "certainty": engine.compute_certainty(),
+            "rain_data_available": False,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    T_f = ensemble["temperature"] or 28.0
+    P_f = ensemble["rain_probability"]
+    W_f = ensemble["wind"] or 15.0
+    H_f = ensemble["humidity"] or 75.0
 
     result = engine.correct_forecast(
         location=req.location,
@@ -502,9 +537,9 @@ async def chat(req: ChatRequest, user: str = Depends(verify_token)):
 
     cyclone_risk = engine.assess_cyclone_risk(
         location=req.location,
-        pressure=ensemble.get("pressure") if ensemble else None,
-        wind_gust=ensemble.get("wind_gust") if ensemble else None,
-        precip_24h=ensemble.get("precip_mm") if ensemble else None,
+        pressure=ensemble.get("pressure"),
+        wind_gust=ensemble.get("wind_gust"),
+        precip_24h=ensemble.get("precip_mm"),
         season=season,
         enso_phase=req.enso_phase,
     )
@@ -519,6 +554,7 @@ async def chat(req: ChatRequest, user: str = Depends(verify_token)):
         "forecast": result["adjusted_forecast"],
         "cyclone_risk": cyclone_risk,
         "certainty": certainty,
+        "rain_data_available": True,
         "timestamp": datetime.utcnow().isoformat(),
     }
 

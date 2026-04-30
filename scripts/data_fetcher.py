@@ -382,16 +382,39 @@ def fetch_fiji_met_forecast(location: str) -> dict | None:
             val *= 1.852  # knots to km/h
         forecast["wind"] = round(val, 1)
 
-    # Rain probability from keywords
+    # Rain probability from keywords.
+    # Order matters: negation and "mainly fine" patterns are checked BEFORE the
+    # bare "rain"/"showers" substring match, otherwise bulletins like
+    # "no rain expected" or "mainly fine with isolated showers" would trip the
+    # rain branch and report 70% — the source of the perma-rain bias.
     text_lower = text.lower()
-    if any(w in text_lower for w in ["heavy rain", "flooding", "downpour"]):
+
+    heavy_patterns = ["heavy rain", "flooding", "downpour", "torrential"]
+    negation_patterns = [
+        "no rain", "rain unlikely", "chance of rain low", "low chance of rain",
+        "no significant rain", "minimal rain", "rain not expected",
+    ]
+    fine_patterns = ["mainly fine", "mostly fine", "mainly dry", "mostly dry",
+                     "fine and sunny", "fine and clear"]
+    scattered_patterns = ["scattered showers", "isolated showers", "brief showers",
+                          "possible showers", "occasional showers", "light showers"]
+
+    if any(p in text_lower for p in heavy_patterns):
         forecast["rain_probability"] = 90
-    elif any(w in text_lower for w in ["rain", "showers", "wet"]):
-        forecast["rain_probability"] = 70
-    elif any(w in text_lower for w in ["scattered", "isolated", "possible"]):
-        forecast["rain_probability"] = 40
+    elif any(p in text_lower for p in negation_patterns):
+        forecast["rain_probability"] = 15
+    elif any(p in text_lower for p in fine_patterns):
+        forecast["rain_probability"] = 20
+    elif any(p in text_lower for p in scattered_patterns):
+        forecast["rain_probability"] = 35
     elif any(w in text_lower for w in ["fine", "sunny", "clear", "dry"]):
-        forecast["rain_probability"] = 10
+        forecast["rain_probability"] = 20
+    elif any(w in text_lower for w in ["showers", "wet"]):
+        forecast["rain_probability"] = 60
+    elif "rain" in text_lower:
+        forecast["rain_probability"] = 70
+    # Otherwise leave as None — the ensemble will skip this source rather than
+    # invent a value.
 
     return forecast
 
@@ -439,7 +462,14 @@ def fetch_windy_forecast(location: str) -> dict | None:
             "source": "windy",
             "location": location,
             "temperature": round(temp, 1) if temp else None,
-            "rain_probability": min(precip * 20, 100) if precip else None,
+            # Windy returns past-3h precipitation in mm, not a probability.
+            # Multiplying mm by 20 to fake a percent (the previous behaviour)
+            # turned 1 mm of rain into a 20% "probability" and 5 mm into 100%,
+            # which dominated the ensemble and biased every forecast toward rain.
+            # Real rain probabilities come from Open-Meteo and AccuWeather; expose
+            # the raw amount as precip_mm for callers that want it.
+            "rain_probability": None,
+            "precip_mm": round(float(precip), 2) if precip else None,
             "wind": wind_speed,
             "humidity": humidity[0] if humidity else None,
             "timestamp": datetime.utcnow().isoformat(),
@@ -541,7 +571,12 @@ def fetch_wunderground_forecast(location: str) -> dict | None:
             "source": "wunderground",
             "location": location,
             "temperature": round(temp, 1) if temp else None,
-            "rain_probability": min(precip[0] * 10, 100) if precip else None,
+            # Wunderground's qpf is mm of forecast precipitation, not a probability.
+            # The previous `min(qpf_mm * 10, 100)` mapping turned routine tropical
+            # forecasts (1–10 mm) into 10–100% "rain probabilities" that swamped the
+            # ensemble. Real probabilities come from Open-Meteo / AccuWeather.
+            "rain_probability": None,
+            "precip_mm": round(float(precip[0]), 2) if precip else None,
             "wind": wind[0] if wind else None,
             "humidity": humidity[0] if humidity else None,
             "timestamp": datetime.utcnow().isoformat(),

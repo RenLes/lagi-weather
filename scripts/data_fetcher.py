@@ -341,23 +341,110 @@ def fetch_all_historical(start_year: int = 2010, end_year: int = 2025) -> pd.Dat
 # CURRENT FORECAST SOURCES (5 providers)
 # ===========================================================================
 
+# Fiji Met groups locations into multi-city forecast sections in the bulletin.
+# Map each Lagi location to the section header that introduces its forecast.
+_FIJI_MET_REGION = {
+    "Suva": "Navua / Suva / Nausori",
+    "Nadi": "Nadi / Lautoka / Ba",
+    "Lautoka": "Nadi / Lautoka / Ba",
+    "Labasa": "Labasa",
+}
+
+
+def _strip_html(html: str) -> str:
+    """Strip HTML tags, scripts, and styles to plain whitespace-collapsed text."""
+    from html.parser import HTMLParser
+    import re as _re
+
+    class _Stripper(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.parts: list[str] = []
+            self.skip = 0
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("script", "style"):
+                self.skip += 1
+
+        def handle_endtag(self, tag):
+            if tag in ("script", "style"):
+                self.skip = max(0, self.skip - 1)
+
+        def handle_data(self, data):
+            if not self.skip:
+                self.parts.append(data)
+
+    s = _Stripper()
+    s.feed(html)
+    return _re.sub(r"\s+", " ", " ".join(s.parts)).strip()
+
+
+def _classify_rain(text: str) -> int | None:
+    """
+    Map a Fiji Met bulletin snippet to a rain probability percentage.
+
+    Order matters: negation and "mainly fine" patterns are checked BEFORE the
+    bare "rain"/"showers" substring match, otherwise bulletins like
+    "no rain expected" or "mainly fine with isolated showers" would trip the
+    rain branch and report 70% — the source of the historical perma-rain bias.
+    """
+    text_lower = text.lower()
+
+    heavy_patterns = ["heavy rain", "flooding", "downpour", "torrential"]
+    negation_patterns = [
+        "no rain", "rain unlikely", "chance of rain low", "low chance of rain",
+        "no significant rain", "minimal rain", "rain not expected",
+    ]
+    fine_patterns = ["mainly fine", "mostly fine", "mainly dry", "mostly dry",
+                     "fine and sunny", "fine and clear", "fine weather"]
+    scattered_patterns = ["scattered showers", "isolated showers", "brief showers",
+                          "possible showers", "occasional showers", "light showers",
+                          "afternoon or evening showers"]
+
+    if any(p in text_lower for p in heavy_patterns):
+        return 90
+    if any(p in text_lower for p in negation_patterns):
+        return 15
+    if any(p in text_lower for p in fine_patterns):
+        return 25
+    if any(p in text_lower for p in scattered_patterns):
+        return 35
+    if any(w in text_lower for w in ["fine", "sunny", "clear", "dry"]):
+        return 25
+    if "cloudy" in text_lower and "shower" in text_lower:
+        return 65
+    if any(w in text_lower for w in ["showers", "wet"]):
+        return 60
+    if "rain" in text_lower:
+        return 70
+    return None
+
+
 def fetch_fiji_met_forecast(location: str) -> dict | None:
     """
     Fetch current forecast from Fiji Meteorological Service.
-    Source: https://www.met.gov.fj/
+
+    Bulletin lives at https://www.met.gov.fj/fiji-weather/fiji-weather/public/
+    (the previous /aifs_prods/forecast_latest.txt URL was retired in early 2026
+    when met.gov.fj migrated to their new CMS). The page is server-rendered
+    HTML containing per-region paragraphs like:
+
+        For Navua / Suva / Nausori : Cloudy with some showers. Tomorrow:
+        Min: 22, Max: 31. Outlook for Saturday : ...
+
+    We strip HTML, slice out the section for the requested location, then
+    pull min/max temperatures and a coarse rain class from the text.
     """
-    url = "https://www.met.gov.fj/aifs_prods/forecast_latest.txt"
+    import re
+
+    url = "https://www.met.gov.fj/fiji-weather/fiji-weather/public/"
     resp = _safe_get(url)
     if not resp:
         return None
 
-    # Parse text forecast — Fiji Met uses plain text bulletins
-    text = resp.text
-    logger.info("Fiji Met forecast: received %d chars", len(text))
+    text = _strip_html(resp.text)
+    logger.info("Fiji Met forecast: received %d chars (stripped)", len(text))
 
-    # Extract temperature and rain indicators from bulletin text
-    # This is a simplified parser — production would use NLP or regex patterns
-    loc = LOCATIONS.get(location, {})
     forecast = {
         "source": "fiji_met",
         "location": location,
@@ -369,52 +456,49 @@ def fetch_fiji_met_forecast(location: str) -> dict | None:
         "timestamp": datetime.utcnow().isoformat(),
     }
 
-    # Try to extract numbers from forecast text
-    import re
-    temp_match = re.search(r'(\d{2,3})\s*(?:degrees?|°|C)', text, re.IGNORECASE)
-    if temp_match:
-        forecast["temperature"] = float(temp_match.group(1))
+    region = _FIJI_MET_REGION.get(location)
+    section = None
+    if region:
+        # Find "For <region> :" and take everything up to the next "For " header
+        # or "Outlook for" subheader, whichever ends the per-region section.
+        marker = f"For {region}"
+        idx = text.lower().find(marker.lower())
+        if idx >= 0:
+            tail = text[idx:idx + 800]
+            # Stop at the next region header. Bulletin uses both spaced and
+            # unspaced colon formats — "For Navua / Suva / Nausori :" and
+            # "For Natadradave/Korovou:" — and slashes both with and without
+            # surrounding spaces, so allow word chars / slashes / dashes /
+            # spaces and an optional gap before the colon.
+            next_for = re.search(r"\bFor [A-Z][\w/\- ]+?\s*:", tail[len(marker):])
+            section = tail[:len(marker) + next_for.start()] if next_for else tail
 
-    wind_match = re.search(r'(\d{1,3})\s*(?:km/?h|knots|kts)', text, re.IGNORECASE)
+    # Use the per-region section if we found one; otherwise fall back to whole
+    # bulletin so the source still produces *something* if the page layout
+    # changes.
+    snippet = section or text
+
+    # Extract Min / Max temperatures from the per-region forecast and use the
+    # midpoint as a temperature reading. Fiji Met formats them as "Min: 22, Max: 31".
+    tmin_match = re.search(r"Min[:\s]+(\d{1,2})", snippet)
+    tmax_match = re.search(r"Max[:\s]+(\d{1,2})", snippet)
+    if tmin_match and tmax_match:
+        tmin = float(tmin_match.group(1))
+        tmax = float(tmax_match.group(1))
+        if 10 <= tmin <= 35 and 15 <= tmax <= 45 and tmax >= tmin:
+            forecast["temperature"] = round((tmin + tmax) / 2, 1)
+
+    # Wind in the bulletin is rare per-region, but check the whole bulletin
+    # for a km/h or knots reading.
+    wind_match = re.search(r"(\d{1,3})\s*(?:km/?h|knots|kts)", text, re.IGNORECASE)
     if wind_match:
         val = float(wind_match.group(1))
-        if "knot" in text[wind_match.start():wind_match.end() + 10].lower():
-            val *= 1.852  # knots to km/h
+        ctx_end = min(len(text), wind_match.end() + 10)
+        if "knot" in text[wind_match.start():ctx_end].lower():
+            val *= 1.852  # knots → km/h
         forecast["wind"] = round(val, 1)
 
-    # Rain probability from keywords.
-    # Order matters: negation and "mainly fine" patterns are checked BEFORE the
-    # bare "rain"/"showers" substring match, otherwise bulletins like
-    # "no rain expected" or "mainly fine with isolated showers" would trip the
-    # rain branch and report 70% — the source of the perma-rain bias.
-    text_lower = text.lower()
-
-    heavy_patterns = ["heavy rain", "flooding", "downpour", "torrential"]
-    negation_patterns = [
-        "no rain", "rain unlikely", "chance of rain low", "low chance of rain",
-        "no significant rain", "minimal rain", "rain not expected",
-    ]
-    fine_patterns = ["mainly fine", "mostly fine", "mainly dry", "mostly dry",
-                     "fine and sunny", "fine and clear"]
-    scattered_patterns = ["scattered showers", "isolated showers", "brief showers",
-                          "possible showers", "occasional showers", "light showers"]
-
-    if any(p in text_lower for p in heavy_patterns):
-        forecast["rain_probability"] = 90
-    elif any(p in text_lower for p in negation_patterns):
-        forecast["rain_probability"] = 15
-    elif any(p in text_lower for p in fine_patterns):
-        forecast["rain_probability"] = 20
-    elif any(p in text_lower for p in scattered_patterns):
-        forecast["rain_probability"] = 35
-    elif any(w in text_lower for w in ["fine", "sunny", "clear", "dry"]):
-        forecast["rain_probability"] = 20
-    elif any(w in text_lower for w in ["showers", "wet"]):
-        forecast["rain_probability"] = 60
-    elif "rain" in text_lower:
-        forecast["rain_probability"] = 70
-    # Otherwise leave as None — the ensemble will skip this source rather than
-    # invent a value.
+    forecast["rain_probability"] = _classify_rain(snippet)
 
     return forecast
 
@@ -479,10 +563,54 @@ def fetch_windy_forecast(location: str) -> dict | None:
         return None
 
 
+# AccuWeather free tier: 50 calls/day total. With 4 cities, even modest traffic
+# blows the quota fast — so we cache responses on disk for several hours and
+# serve from cache between refreshes. /tmp is the only writable path on Vercel
+# serverless functions; we fall back to it if the project CACHE_DIR isn't
+# writable (which is the normal case in production).
+_ACCUWEATHER_CACHE_TTL_SECONDS = 6 * 60 * 60  # 6 hours -> ~16 calls/day worst case
+
+
+def _accuweather_cache_path(location: str) -> Path:
+    base = Path("/tmp") if not os.access(str(CACHE_DIR), os.W_OK) else CACHE_DIR
+    base.mkdir(parents=True, exist_ok=True)
+    return base / f"accuweather_{location.lower()}.json"
+
+
+def _read_accuweather_cache(location: str) -> dict | None:
+    path = _accuweather_cache_path(location)
+    if not path.exists():
+        return None
+    try:
+        with open(path) as f:
+            cached = json.load(f)
+        age = time.time() - cached.get("_cached_at", 0)
+        if age > _ACCUWEATHER_CACHE_TTL_SECONDS:
+            return None
+        logger.info("AccuWeather cache hit for %s (age %.0fs)", location, age)
+        return cached.get("payload")
+    except Exception as e:
+        logger.warning("AccuWeather cache read failed for %s: %s", location, e)
+        return None
+
+
+def _write_accuweather_cache(location: str, payload: dict) -> None:
+    path = _accuweather_cache_path(location)
+    try:
+        with open(path, "w") as f:
+            json.dump({"_cached_at": time.time(), "payload": payload}, f)
+    except Exception as e:
+        logger.warning("AccuWeather cache write failed for %s: %s", location, e)
+
+
 def fetch_accuweather_forecast(location: str) -> dict | None:
     """
     Fetch forecast from AccuWeather API.
     Requires API key: https://developer.accuweather.com/
+
+    Free tier is 50 calls/day. Responses are cached on disk for 6 hours
+    (see _ACCUWEATHER_CACHE_TTL_SECONDS) so per-location refreshes happen at
+    most 4×/day across 4 cities → ~16 calls/day, well under the cap.
     """
     api_key = os.environ.get("ACCUWEATHER_API_KEY", "")
     if not api_key:
@@ -500,6 +628,13 @@ def fetch_accuweather_forecast(location: str) -> dict | None:
     loc_key = location_keys.get(location)
     if not loc_key:
         return None
+
+    cached = _read_accuweather_cache(location)
+    if cached is not None:
+        # Refresh the timestamp so consumers see "now" while still respecting
+        # the upstream forecast period.
+        cached["timestamp"] = datetime.utcnow().isoformat()
+        return cached
 
     url = f"http://dataservice.accuweather.com/forecasts/v1/daily/1day/{loc_key}"
     params = {"apikey": api_key, "details": "true", "metric": "true"}
@@ -519,7 +654,7 @@ def fetch_accuweather_forecast(location: str) -> dict | None:
         rain_prob = day.get("RainProbability", day.get("PrecipitationProbability"))
         wind_speed = day.get("Wind", {}).get("Speed", {}).get("Value")
 
-        return {
+        payload = {
             "source": "accuweather",
             "location": location,
             "temperature": round(temp, 1) if temp else None,
@@ -528,6 +663,8 @@ def fetch_accuweather_forecast(location: str) -> dict | None:
             "humidity": None,
             "timestamp": datetime.utcnow().isoformat(),
         }
+        _write_accuweather_cache(location, payload)
+        return payload
     except Exception as e:
         logger.error("AccuWeather parse error: %s", e)
         return None

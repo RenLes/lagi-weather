@@ -20,7 +20,6 @@ from pathlib import Path
 
 import numpy as np
 import requests
-from scipy.special import expit as sigmoid
 
 # Add project root and scripts dir to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -118,7 +117,13 @@ class LagiInference:
         delta_p = gamma["gamma_0"] + gamma["gamma_1"] * P_f + gamma["gamma_2"] * humidity_f + gamma["gamma_3"] * W_f
 
         T_static = T_f + delta_t
-        P_static = float(sigmoid(P_f + delta_p)) * 100
+        # NOTE: training fits DeltaP = P_actual - P_forecast in PERCENT space
+        # (see scripts/train_lagi.py:193). Wrapping (P_f + delta_p) in a sigmoid
+        # treats those percent values as a logit and saturates the output to
+        # ~100% for any P_f >= 5 — that was the dominant cause of the
+        # "always raining" bug, on top of the upstream fallback issues.
+        # Apply the correction additively in percent space and clamp to [0, 100].
+        P_static = float(max(0.0, min(100.0, P_f + delta_p)))
 
         # Step 2: Dynamic correlation adjustment (from validation history)
         dynamic = apply_dynamic_adjustment(T_static, P_static, self.dynamic_coefficients)
@@ -180,7 +185,8 @@ class LagiInference:
         precip_errors = self.error_distributions["precip_gmm"].sample(MONTE_CARLO_SAMPLES)[0].flatten()
 
         t_samples = T_f + delta_t + temp_errors
-        p_samples = sigmoid(P_f + delta_p + precip_errors) * 100
+        # Same scale fix as correct_forecast: sample in percent space and clamp.
+        p_samples = np.clip(P_f + delta_p + precip_errors, 0.0, 100.0)
 
         return {
             "T_mean": round(float(np.mean(t_samples)), 1),
@@ -220,7 +226,10 @@ class LagiInference:
 
             if p is not None and h is not None and w is not None:
                 delta_p = gamma["gamma_0"] + gamma["gamma_1"] * p + gamma["gamma_2"] * h + gamma["gamma_3"] * (w or 0)
-                p_adj = round(max(0.0, min(100.0, float(sigmoid(p + delta_p)) * 100)), 1)
+                # Same scale fix as correct_forecast: additive correction in
+                # percent space, clamped to [0, 100]. Wrapping in sigmoid here
+                # would saturate every day to 100%.
+                p_adj = round(max(0.0, min(100.0, float(p + delta_p))), 1)
             else:
                 p_adj = p
 

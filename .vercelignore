@@ -1,0 +1,32 @@
+# Vercel deploy bundle exclusions.
+# Production only needs deployment/, scripts/, config.py, and the small
+# coefficients/error-distribution artifacts under output/. Everything below
+# is training- or report-time only and would push the bundle past Vercel's
+# 100 MB upload cap.
+
+# QLoRA adapter weights and tokenizer (training artifacts; inference uses Groq).
+output/adapter_model.safetensors
+output/tokenizer.json
+output/tokenizer_config.json
+output/chat_template.jinja
+output/adapter_config.json
+output/special_tokens_map.json
+
+# Training, validation, and report machinery (not needed at request time).
+reports/
+docs/
+logs/
+tests/
+
+# Note: keep data/ — it holds users.jsonl (auth) and predictions_log.jsonl
+# (validation). It's only ~40 KB.
+
+# Local dev / VCS.
+.git/
+.github/
+.claude/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.DS_Store

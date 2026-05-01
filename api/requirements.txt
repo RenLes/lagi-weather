@@ -1,0 +1,21 @@
+# Runtime-only dependencies for the Vercel serverless function.
+# Vercel's @vercel/python builder picks up api/requirements.txt for the
+# function bundle and ignores the project-root requirements.txt (which
+# pulls in torch/transformers/peft/bitsandbytes for QLoRA training and
+# blows past the 500 MB Lambda ephemeral-storage cap).
+
+# Web framework
+fastapi>=0.110.0
+pydantic>=2.6.0
+
+# Data fetching
+requests>=2.31.0
+
+# Numerics
+numpy>=1.26.0
+pandas>=2.2.0
+scipy>=1.12.0
+
+# Needed to unpickle the GaussianMixture error distributions in
+# output/error_distributions.pkl at startup.
+scikit-learn>=1.4.0

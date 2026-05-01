@@ -21,6 +21,18 @@ checkpoints/
 # Data (add your own CSVs)
 data/*.csv
 
+# Runtime data — never commit (PII or rolling logs)
+data/users.jsonl
+data/predictions_log.jsonl
+data/actuals_log.jsonl
+data/performance_log.jsonl
+data/cache/
+
+# Vercel env-pull artifacts (contain secrets)
+.env.prod
+.env.local
+.env.development
+
 # Logs (keep training log, ignore others)
 logs/*.log
 !logs/nohup_training_v2.log

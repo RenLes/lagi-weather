@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 Lagi -- Fiji Weather Guardian: Multi-Source Data Fetcher
 =========================================================
@@ -23,6 +24,7 @@ import csv
 import json
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -31,17 +33,16 @@ import numpy as np
 import pandas as pd
 import requests
 
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from config import (
+    DATA_DIR, CACHE_DIR, LOCATIONS,
+    RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS,
+    HTTP_TIMEOUT, HTTP_MAX_RETRIES,
+)
+
 logger = logging.getLogger("lagi.data_fetcher")
-
-DATA_DIR = Path(__file__).parent.parent / "data"
-CACHE_DIR = DATA_DIR / "cache"
-
-LOCATIONS = {
-    "Suva": {"lat": -18.1416, "lon": 178.4419, "ghcn_id": "FJM00091680", "wmo_id": "91680"},
-    "Nadi": {"lat": -17.7765, "lon": 177.9640, "ghcn_id": "FJM00091680", "wmo_id": "91685"},
-    "Labasa": {"lat": -16.4167, "lon": 179.3667, "ghcn_id": "FJ000091670", "wmo_id": "91670"},
-    "Lautoka": {"lat": -17.6065, "lon": 177.4540, "ghcn_id": "FJ000091684", "wmo_id": "91684"},
-}
 
 
 # ---------------------------------------------------------------------------
@@ -65,13 +66,13 @@ class RateLimiter:
         self.timestamps.append(time.time())
 
 
-rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
+rate_limiter = RateLimiter(max_requests=RATE_LIMIT_MAX_REQUESTS, window_seconds=RATE_LIMIT_WINDOW_SECONDS)
 
 
-def _safe_get(url: str, params: dict = None, headers: dict = None, timeout: int = 30) -> requests.Response | None:
+def _safe_get(url: str, params: dict = None, headers: dict = None, timeout: int = HTTP_TIMEOUT) -> requests.Response | None:
     """HTTP GET with rate limiting, retries, and error handling."""
     rate_limiter.wait()
-    for attempt in range(3):
+    for attempt in range(HTTP_MAX_RETRIES):
         try:
             resp = requests.get(url, params=params, headers=headers, timeout=timeout)
             resp.raise_for_status()
@@ -459,27 +460,20 @@ def fetch_fiji_met_forecast(location: str) -> dict | None:
     region = _FIJI_MET_REGION.get(location)
     section = None
     if region:
-        # Find "For <region> :" and take everything up to the next "For " header
-        # or "Outlook for" subheader, whichever ends the per-region section.
         marker = f"For {region}"
         idx = text.lower().find(marker.lower())
         if idx >= 0:
             tail = text[idx:idx + 800]
-            # Stop at the next region header. Bulletin uses both spaced and
-            # unspaced colon formats — "For Navua / Suva / Nausori :" and
-            # "For Natadradave/Korovou:" — and slashes both with and without
-            # surrounding spaces, so allow word chars / slashes / dashes /
-            # spaces and an optional gap before the colon.
+            # Bulletin uses both spaced ("For Navua / Suva / Nausori :") and
+            # unspaced ("For Natadradave/Korovou:") colon formats — allow word
+            # chars, slashes, dashes, spaces, and an optional gap before colon.
             next_for = re.search(r"\bFor [A-Z][\w/\- ]+?\s*:", tail[len(marker):])
             section = tail[:len(marker) + next_for.start()] if next_for else tail
 
-    # Use the per-region section if we found one; otherwise fall back to whole
-    # bulletin so the source still produces *something* if the page layout
-    # changes.
     snippet = section or text
 
     # Extract Min / Max temperatures from the per-region forecast and use the
-    # midpoint as a temperature reading. Fiji Met formats them as "Min: 22, Max: 31".
+    # midpoint as the temperature reading. Format: "Min: 22, Max: 31".
     tmin_match = re.search(r"Min[:\s]+(\d{1,2})", snippet)
     tmax_match = re.search(r"Max[:\s]+(\d{1,2})", snippet)
     if tmin_match and tmax_match:
@@ -550,8 +544,6 @@ def fetch_windy_forecast(location: str) -> dict | None:
             # Multiplying mm by 20 to fake a percent (the previous behaviour)
             # turned 1 mm of rain into a 20% "probability" and 5 mm into 100%,
             # which dominated the ensemble and biased every forecast toward rain.
-            # Real rain probabilities come from Open-Meteo and AccuWeather; expose
-            # the raw amount as precip_mm for callers that want it.
             "rain_probability": None,
             "precip_mm": round(float(precip), 2) if precip else None,
             "wind": wind_speed,
@@ -563,11 +555,11 @@ def fetch_windy_forecast(location: str) -> dict | None:
         return None
 
 
-# AccuWeather free tier: 50 calls/day total. With 4 cities, even modest traffic
-# blows the quota fast — so we cache responses on disk for several hours and
-# serve from cache between refreshes. /tmp is the only writable path on Vercel
-# serverless functions; we fall back to it if the project CACHE_DIR isn't
-# writable (which is the normal case in production).
+# AccuWeather free tier is 50 calls/day total. With 4 cities and even modest
+# traffic, /forecast would burn the quota in minutes. Cache responses on disk
+# for several hours and serve from cache between refreshes. /tmp is the only
+# writable path on Vercel serverless; fall back to it if CACHE_DIR isn't
+# writable (the production case).
 _ACCUWEATHER_CACHE_TTL_SECONDS = 6 * 60 * 60  # 6 hours -> ~16 calls/day worst case
 
 
@@ -631,8 +623,6 @@ def fetch_accuweather_forecast(location: str) -> dict | None:
 
     cached = _read_accuweather_cache(location)
     if cached is not None:
-        # Refresh the timestamp so consumers see "now" while still respecting
-        # the upstream forecast period.
         cached["timestamp"] = datetime.utcnow().isoformat()
         return cached
 
@@ -709,9 +699,9 @@ def fetch_wunderground_forecast(location: str) -> dict | None:
             "location": location,
             "temperature": round(temp, 1) if temp else None,
             # Wunderground's qpf is mm of forecast precipitation, not a probability.
-            # The previous `min(qpf_mm * 10, 100)` mapping turned routine tropical
-            # forecasts (1–10 mm) into 10–100% "rain probabilities" that swamped the
-            # ensemble. Real probabilities come from Open-Meteo / AccuWeather.
+            # The previous min(qpf_mm * 10, 100) mapping turned routine tropical
+            # forecasts (1–10 mm) into 10–100% "rain probabilities" that swamped
+            # the ensemble. Real probabilities come from Open-Meteo / AccuWeather.
             "rain_probability": None,
             "precip_mm": round(float(precip[0]), 2) if precip else None,
             "wind": wind[0] if wind else None,
@@ -773,17 +763,118 @@ def fetch_bom_metvuw_forecast(location: str) -> dict | None:
     return None
 
 
+def fetch_openmeteo_forecast(location: str) -> dict | None:
+    """
+    Fetch forecast from Open-Meteo API.
+    Source: https://open-meteo.com/
+    FREE, no API key needed. Excellent coverage for Pacific Islands.
+    """
+    loc = LOCATIONS.get(location, {})
+    if not loc:
+        return None
+
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": loc["lat"],
+        "longitude": loc["lon"],
+        "daily": ",".join([
+            "temperature_2m_max", "temperature_2m_min",
+            "precipitation_probability_max", "precipitation_sum",
+            "wind_speed_10m_max", "wind_gusts_10m_max",
+            "relative_humidity_2m_max",
+        ]),
+        "hourly": "surface_pressure",
+        "timezone": "Pacific/Fiji",
+        "forecast_days": 7,
+    }
+
+    resp = _safe_get(url, params=params)
+    if not resp:
+        return None
+
+    try:
+        data = resp.json()
+        daily = data.get("daily", {})
+
+        dates = daily.get("time", [])
+        t_maxes = daily.get("temperature_2m_max", [])
+        t_mins = daily.get("temperature_2m_min", [])
+        rain_probs = daily.get("precipitation_probability_max", [])
+        winds = daily.get("wind_speed_10m_max", [])
+        humidities = daily.get("relative_humidity_2m_max", [])
+        wind_gusts = daily.get("wind_gusts_10m_max", [])
+        precip_sums = daily.get("precipitation_sum", [])
+
+        # Build 7-day forecast array
+        daily_forecast = []
+        for i in range(min(7, len(dates))):
+            t_max_i = t_maxes[i] if i < len(t_maxes) else None
+            t_min_i = t_mins[i] if i < len(t_mins) else None
+            temp_i = round((t_max_i + t_min_i) / 2, 1) if t_max_i is not None and t_min_i is not None else None
+
+            daily_forecast.append({
+                "date": dates[i] if i < len(dates) else None,
+                "temperature": temp_i,
+                "temp_max": round(t_max_i, 1) if t_max_i is not None else None,
+                "temp_min": round(t_min_i, 1) if t_min_i is not None else None,
+                "rain_probability": rain_probs[i] if i < len(rain_probs) else None,
+                "wind": round(winds[i], 1) if i < len(winds) and winds[i] is not None else None,
+                "wind_gust": round(wind_gusts[i], 1) if i < len(wind_gusts) and wind_gusts[i] is not None else None,
+                "precip_mm": round(precip_sums[i], 1) if i < len(precip_sums) and precip_sums[i] is not None else None,
+                "humidity": humidities[i] if i < len(humidities) else None,
+            })
+
+        # Day 0 values for backward compat
+        day0 = daily_forecast[0] if daily_forecast else {}
+        temp = day0.get("temperature")
+        rain_prob = day0.get("rain_probability")
+        wind = day0.get("wind")
+        humidity = day0.get("humidity")
+        wind_gust = day0.get("wind_gust")
+        precip_mm = day0.get("precip_mm")
+
+        # Get mean surface pressure from hourly data (first 24h)
+        hourly = data.get("hourly", {})
+        pressure_values = hourly.get("surface_pressure", [])
+        pressure_today = pressure_values[:24] if pressure_values else []
+        pressure = round(float(np.mean(pressure_today)), 1) if pressure_today else None
+
+        return {
+            "source": "open_meteo",
+            "location": location,
+            "temperature": temp,
+            "rain_probability": rain_prob,
+            "wind": wind,
+            "humidity": humidity,
+            "wind_gust": wind_gust,
+            "pressure": pressure,
+            "precip_mm": precip_mm,
+            "daily_forecast": daily_forecast,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        logger.error("Open-Meteo parse error: %s", e)
+        return None
+
+
+# Active weather sources (all free, no API keys required)
+WEATHER_SOURCES = [
+    "Fiji Meteorological Service (met.gov.fj)",
+    "BOM Australia / Metvuw",
+    "Open-Meteo (ECMWF + GFS)",
+]
+
+
 def fetch_all_current_forecasts(location: str) -> list[dict]:
     """
-    Fetch current forecasts from all 5 sources for a given location.
+    Fetch current forecasts from 3 free sources for a given location.
+    Sources: Fiji Met Service, BOM/Metvuw, Open-Meteo
     Returns list of forecast dicts (only successful fetches).
     """
     fetchers = [
         ("Fiji Met Service", fetch_fiji_met_forecast),
-        ("Windy.com", fetch_windy_forecast),
-        ("AccuWeather", fetch_accuweather_forecast),
-        ("Weather Underground", fetch_wunderground_forecast),
         ("BOM/Metvuw", fetch_bom_metvuw_forecast),
+        ("Open-Meteo", fetch_openmeteo_forecast),
     ]
 
     forecasts = []
@@ -807,27 +898,172 @@ def fetch_all_current_forecasts(location: str) -> list[dict]:
     return forecasts
 
 
-def compute_ensemble_average(forecasts: list[dict]) -> dict:
+def load_source_weights(location: str) -> dict:
     """
-    Compute simple ensemble average from multiple forecast sources.
+    Load per-source accuracy weights for a location.
+    Weights are derived from historical MAE against actuals.
+    Returns dict mapping source name -> weight (higher = more accurate).
+    Falls back to equal weights if no weights file exists.
+    """
+    weights_path = DATA_DIR / "source_weights.json"
+    if not weights_path.exists():
+        return {}
+    try:
+        with open(weights_path) as f:
+            all_weights = json.load(f)
+        return all_weights.get(location, {})
+    except Exception as e:
+        logger.warning("Could not load source weights: %s", e)
+        return {}
+
+
+def compute_ensemble_average(forecasts: list[dict], location: str | None = None) -> dict:
+    """
+    Compute weighted ensemble average from multiple forecast sources.
+    Uses per-source accuracy weights when available (from source_weights.json),
+    falls back to simple averaging when weights are unavailable.
     """
     if not forecasts:
         return {"temperature": None, "rain_probability": None, "wind": None, "humidity": None, "n_sources": 0}
 
-    temps = [f["temperature"] for f in forecasts if f.get("temperature") is not None]
-    rains = [f["rain_probability"] for f in forecasts if f.get("rain_probability") is not None]
-    winds = [f["wind"] for f in forecasts if f.get("wind") is not None]
-    humidities = [f["humidity"] for f in forecasts if f.get("humidity") is not None]
+    # Load weights for this location
+    weights_map = load_source_weights(location) if location else {}
+
+    def _weighted_mean(values: list[float], sources: list[str]) -> float:
+        if not values:
+            return None
+        if not weights_map:
+            return round(float(np.mean(values)), 1)
+
+        weights = []
+        for src in sources:
+            w = weights_map.get(src, 1.0)
+            weights.append(w)
+
+        total_w = sum(weights)
+        if total_w == 0:
+            return round(float(np.mean(values)), 1)
+
+        weighted_sum = sum(v * w for v, w in zip(values, weights))
+        return round(weighted_sum / total_w, 1)
+
+    # Collect values and their source names in parallel
+    temp_vals, temp_srcs = [], []
+    rain_vals, rain_srcs = [], []
+    wind_vals, wind_srcs = [], []
+    hum_vals, hum_srcs = [], []
+
+    gust_vals, gust_srcs = [], []
+    pressure_vals, pressure_srcs = [], []
+    precip_vals, precip_srcs = [], []
+
+    for f in forecasts:
+        src = f.get("source", "unknown")
+        if f.get("temperature") is not None:
+            temp_vals.append(f["temperature"])
+            temp_srcs.append(src)
+        if f.get("rain_probability") is not None:
+            rain_vals.append(f["rain_probability"])
+            rain_srcs.append(src)
+        if f.get("wind") is not None:
+            wind_vals.append(f["wind"])
+            wind_srcs.append(src)
+        if f.get("humidity") is not None:
+            hum_vals.append(f["humidity"])
+            hum_srcs.append(src)
+        if f.get("wind_gust") is not None:
+            gust_vals.append(f["wind_gust"])
+            gust_srcs.append(src)
+        if f.get("pressure") is not None:
+            pressure_vals.append(f["pressure"])
+            pressure_srcs.append(src)
+        if f.get("precip_mm") is not None:
+            precip_vals.append(f["precip_mm"])
+            precip_srcs.append(src)
+
+    weighting_method = "weighted" if weights_map else "equal"
+
+    # Merge daily_forecast arrays — use the longest one available
+    # (typically only Open-Meteo provides 7-day data)
+    daily_forecast = []
+    for f in forecasts:
+        df = f.get("daily_forecast", [])
+        if len(df) > len(daily_forecast):
+            daily_forecast = df
 
     return {
-        "temperature": round(np.mean(temps), 1) if temps else None,
-        "rain_probability": round(np.mean(rains), 1) if rains else None,
-        "wind": round(np.mean(winds), 1) if winds else None,
-        "humidity": round(np.mean(humidities), 1) if humidities else None,
+        "temperature": _weighted_mean(temp_vals, temp_srcs),
+        "rain_probability": _weighted_mean(rain_vals, rain_srcs),
+        "wind": _weighted_mean(wind_vals, wind_srcs),
+        "humidity": _weighted_mean(hum_vals, hum_srcs),
+        "wind_gust": _weighted_mean(gust_vals, gust_srcs),
+        "pressure": _weighted_mean(pressure_vals, pressure_srcs),
+        "precip_mm": _weighted_mean(precip_vals, precip_srcs),
+        "daily_forecast": daily_forecast,
         "n_sources": len(forecasts),
         "sources": [f["source"] for f in forecasts],
+        "weighting": weighting_method,
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Cyclone warnings from external sources
+# ---------------------------------------------------------------------------
+def fetch_cyclone_warnings() -> list[dict]:
+    """
+    Check for active tropical cyclone warnings from BOM and Fiji Met Service.
+    Returns list of active systems with name, category, and source.
+    """
+    warnings = []
+
+    # Check Fiji Met Service warning bulletin
+    try:
+        resp = _safe_get("https://www.met.gov.fj/aifs_prods/TCW_latest.txt")
+        if resp and resp.text:
+            text = resp.text.lower()
+            # Check for active cyclone keywords
+            if any(kw in text for kw in ["tropical cyclone", "tropical disturbance",
+                                          "tropical depression", "category"]):
+                import re
+                # Try to extract cyclone name
+                name_match = re.search(r'tropical cyclone\s+(\w+)', text, re.IGNORECASE)
+                cat_match = re.search(r'category\s+(\d)', text, re.IGNORECASE)
+                warnings.append({
+                    "source": "fiji_met",
+                    "name": name_match.group(1).title() if name_match else "Unknown",
+                    "category": int(cat_match.group(1)) if cat_match else None,
+                    "type": "tropical_cyclone",
+                    "raw_text": resp.text[:300],
+                })
+                logger.info("FMS cyclone warning detected: %s", warnings[-1]["name"])
+    except Exception as e:
+        logger.warning("Could not check FMS cyclone warnings: %s", e)
+
+    # Check BOM tropical cyclone feed
+    try:
+        resp = _safe_get("http://www.bom.gov.au/fwo/IDZ00066.json")
+        if resp:
+            data = resp.json()
+            observations = data.get("observations", {}).get("data", [])
+            # Look for cyclone-strength observations near Fiji (lat -12 to -22, lon 176-180)
+            for obs in observations:
+                lat = obs.get("lat", 0)
+                lon = obs.get("lon", 0)
+                wind_spd = obs.get("wind_spd_kmh", 0)
+                if -22 <= lat <= -12 and 170 <= lon <= 185 and wind_spd and wind_spd > 90:
+                    warnings.append({
+                        "source": "bom_australia",
+                        "name": obs.get("name", "Unknown"),
+                        "category": None,
+                        "type": "severe_weather",
+                        "wind_kmh": wind_spd,
+                    })
+                    logger.info("BOM severe weather detected near Fiji: wind %d km/h", wind_spd)
+    except Exception as e:
+        logger.warning("Could not check BOM cyclone data: %s", e)
+
+    return warnings
 
 
 # ---------------------------------------------------------------------------

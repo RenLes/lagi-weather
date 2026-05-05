@@ -318,6 +318,13 @@ async def verify_code(req: VerifyRequest, request: Request):
 class ForecastRequest(BaseModel):
     location: str = Field(..., description="Fiji location: Suva, Nadi, Labasa, or Lautoka")
     enso_phase: str = Field("Neutral", description="ENSO phase: Nina, Neutral, Nino")
+    activity: str = Field(
+        "",
+        description="Optional activity key for personalised commentary "
+                    "(e.g. fishing, hiking, laundry, beach, sports, boating, "
+                    "cycling, golf, kids_play, outdoor_event, gardening, "
+                    "weather_only). Empty string falls back to a general briefing.",
+    )
 
 
 class ActualObservation(BaseModel):
@@ -410,7 +417,7 @@ async def get_forecast(req: ForecastRequest):
     daily_forecast = engine.correct_multi_day(raw_daily, season, req.enso_phase)
 
     commentary = engine.generate_forecast_commentary(
-        req.location, result, cyclone_risk, daily_forecast
+        req.location, result, cyclone_risk, daily_forecast, activity=req.activity
     )
 
     sources_used = ensemble.get("sources", [])

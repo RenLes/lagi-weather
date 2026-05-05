@@ -52,8 +52,9 @@
 
         header { text-align: center; padding: 28px 0 20px; }
         header img.lagi-logo {
-            width: 180px; height: auto;
-            filter: drop-shadow(0 0 28px rgba(0,245,160,0.35));
+            width: 220px; height: auto;
+            border-radius: 20px;
+            filter: drop-shadow(0 0 36px rgba(0,180,255,0.45)) drop-shadow(0 0 60px rgba(0,245,160,0.2));
         }
 
         /* Tabs */
@@ -267,24 +268,77 @@
         .day-card .day-temp { font-size: 1.4em; font-weight: 700; color: #00f5a0; margin: 6px 0; font-family: 'Space Grotesk', sans-serif; }
         .day-card .day-detail { font-size: 0.78em; color: #71717a; }
 
+        /* Activity grid */
+        .activity-intro {
+            color: #71717a; font-size: 0.95em; margin-bottom: 20px; line-height: 1.6;
+        }
+        .activity-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 22px;
+        }
+        .activity-card {
+            background: #0f0f12;
+            border: 1px solid rgba(0,245,160,0.1);
+            border-radius: 12px;
+            padding: 16px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .activity-card:hover {
+            border-color: rgba(0,245,160,0.35);
+            background: rgba(0,245,160,0.04);
+        }
+        .activity-card.selected {
+            border-color: #00f5a0;
+            background: rgba(0,245,160,0.08);
+            box-shadow: 0 0 0 1px #00f5a0, 0 0 18px rgba(0,245,160,0.12);
+        }
+        .activity-card .act-icon { font-size: 1.8em; margin-bottom: 7px; line-height: 1; }
+        .activity-card .act-label {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.82em; font-weight: 600;
+            color: rgba(255,255,255,0.7); line-height: 1.3;
+        }
+        .activity-card.selected .act-label { color: #00f5a0; }
+
+        /* Activity result reuses same .result / .card styles */
+        #activityResultCard { margin-top: 16px; }
+        .activity-context-badge {
+            display: inline-flex; align-items: center; gap: 7px;
+            background: rgba(0,245,160,0.08);
+            border: 1px solid rgba(0,245,160,0.2);
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 0.82em; font-weight: 600;
+            color: #6ee7b7;
+            font-family: 'Space Grotesk', sans-serif;
+            margin-bottom: 16px;
+        }
+
         @media (max-width: 600px) {
             .form-row { grid-template-columns: 1fr; }
             .forecast-grid { grid-template-columns: 1fr; }
             .tabs { flex-wrap: wrap; }
             .tab-btn { font-size: 0.82em; padding: 10px 8px; }
+            .activity-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <img src="/assets/lagi-logo.png" alt="Lagi — Fiji Weather Guardian" class="lagi-logo">
+            <img src="assets/lagi-logo.png" alt="Lagi — Fiji Weather Guardian" class="lagi-logo">
         </header>
 
         <div class="tabs">
             <button id="tab-btn-chat" class="tab-btn" onclick="switchTab('chat', this)">Chat with Lagi</button>
             <button id="tab-btn-forecast" class="tab-btn" onclick="switchTab('forecast', this)">Forecast</button>
-            <button id="tab-btn-info" class="tab-btn" onclick="switchTab('info', this)">Information on Lagi</button>
+            <button id="tab-btn-activity" class="tab-btn" onclick="switchTab('activity', this)">Activity Planned</button>
+            <button id="tab-btn-info" class="tab-btn" onclick="switchTab('info', this)">About Lagi</button>
         </div>
 
         <!-- Tab 1: Chat (hidden until SHOW_CHAT = true) -->
@@ -361,7 +415,7 @@
 
                 <!-- Lagi says commentary -->
                 <div class="lagi-commentary" id="lagiCommentary">
-                    <img src="/assets/lagi-logo.png" alt="Lagi" class="lagi-avatar">
+                    <img src="assets/lagi-logo.png" alt="Lagi" class="lagi-avatar">
                     <div class="commentary-body">
                         <div class="commentary-label">Lagi says</div>
                         <div class="commentary-text" id="lagiCommentaryText"></div>
@@ -449,7 +503,142 @@
             </div>
         </div>
 
-        <!-- Tab 3: Information on Lagi -->
+        <!-- Tab 3: Activity Planned -->
+        <div id="tab-activity" class="tab-content">
+            <div class="card">
+                <h2>What are you planning?</h2>
+                <p class="activity-intro">Tell Lagi what you have planned and she'll tailor the forecast to your activity — whether you're heading to sea, the garden, or the laundry line.</p>
+
+                <div class="form-row" style="margin-bottom:20px">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label for="activityLocation">Location</label>
+                        <select id="activityLocation">
+                            <option value="Suva">Suva</option>
+                            <option value="Nadi">Nadi</option>
+                            <option value="Labasa">Labasa</option>
+                            <option value="Lautoka">Lautoka</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="activity-grid" id="activityGrid">
+                    <div class="activity-card" data-key="weather_only" onclick="selectActivity(this)">
+                        <div class="act-icon">🌤️</div>
+                        <div class="act-label">Just the Weather</div>
+                    </div>
+                    <div class="activity-card" data-key="fishing" onclick="selectActivity(this)">
+                        <div class="act-icon">🎣</div>
+                        <div class="act-label">Fishing</div>
+                    </div>
+                    <div class="activity-card" data-key="hiking" onclick="selectActivity(this)">
+                        <div class="act-icon">🥾</div>
+                        <div class="act-label">Hiking / Outdoors</div>
+                    </div>
+                    <div class="activity-card" data-key="laundry" onclick="selectActivity(this)">
+                        <div class="act-icon">👕</div>
+                        <div class="act-label">Doing Laundry</div>
+                    </div>
+                    <div class="activity-card" data-key="outdoor_event" onclick="selectActivity(this)">
+                        <div class="act-icon">🍖</div>
+                        <div class="act-label">Outdoor Event / BBQ / Picnic</div>
+                    </div>
+                    <div class="activity-card" data-key="gardening" onclick="selectActivity(this)">
+                        <div class="act-icon">🌱</div>
+                        <div class="act-label">Gardening</div>
+                    </div>
+                    <div class="activity-card" data-key="beach" onclick="selectActivity(this)">
+                        <div class="act-icon">🏖️</div>
+                        <div class="act-label">Beach / Swimming</div>
+                    </div>
+                    <div class="activity-card" data-key="sports" onclick="selectActivity(this)">
+                        <div class="act-icon">⚽</div>
+                        <div class="act-label">Sports & Exercise</div>
+                    </div>
+                    <div class="activity-card" data-key="boating" onclick="selectActivity(this)">
+                        <div class="act-icon">⛵</div>
+                        <div class="act-label">Boating / Sailing</div>
+                    </div>
+                    <div class="activity-card" data-key="cycling" onclick="selectActivity(this)">
+                        <div class="act-icon">🚴</div>
+                        <div class="act-label">Cycling / Biking</div>
+                    </div>
+                    <div class="activity-card" data-key="golf" onclick="selectActivity(this)">
+                        <div class="act-icon">⛳</div>
+                        <div class="act-label">Golf</div>
+                    </div>
+                    <div class="activity-card" data-key="kids_play" onclick="selectActivity(this)">
+                        <div class="act-icon">🪁</div>
+                        <div class="act-label">Kids Outdoor Play</div>
+                    </div>
+                </div>
+
+                <button class="primary" id="activityBtn" onclick="fetchActivityForecast()" disabled>Select an activity above</button>
+            </div>
+
+            <div class="error" id="activityErrorBox"></div>
+
+            <div class="card rounded-top result" id="activityResultCard">
+                <div class="activity-context-badge" id="activityBadge"></div>
+                <h2 id="activityResultTitle" style="font-family:'Space Grotesk',sans-serif">Bula!</h2>
+
+                <!-- Cyclone risk banner -->
+                <div class="cyclone-banner" id="activityCycloneBanner">
+                    <div class="risk-label" id="activityCycloneRiskLabel"></div>
+                    <div class="risk-factors" id="activityCycloneFactors"></div>
+                </div>
+
+                <!-- Source attribution -->
+                <div class="source-msg" id="activitySourceMessage"></div>
+
+                <!-- Lagi says commentary (activity-tailored) -->
+                <div class="lagi-commentary" id="activityCommentary">
+                    <img src="assets/lagi-logo.png" alt="Lagi" class="lagi-avatar">
+                    <div class="commentary-body">
+                        <div class="commentary-label">Lagi says</div>
+                        <div class="commentary-text" id="activityCommentaryText"></div>
+                    </div>
+                </div>
+
+                <!-- Today's Summary -->
+                <div style="margin-bottom:14px">
+                    <div style="font-weight:700;color:#00f5a0;font-size:1em;margin-bottom:10px;font-family:'Space Grotesk',sans-serif;letter-spacing:0.02em">Today's Summary</div>
+                    <div class="forecast-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                        <div class="forecast-item">
+                            <div class="label">Temperature</div>
+                            <div class="value" id="actTempValue" style="font-size:1.5em">--</div>
+                            <div class="ci" id="actTempCI">95% CI: --</div>
+                        </div>
+                        <div class="forecast-item">
+                            <div class="label">Rain Chance</div>
+                            <div class="value" id="actRainValue" style="font-size:1.5em">--</div>
+                            <div class="ci" id="actRainCI">95% CI: --</div>
+                        </div>
+                        <div class="forecast-item">
+                            <div class="label">Rainfall</div>
+                            <div class="value" id="actPrecipValue" style="font-size:1.5em">--</div>
+                            <div class="ci">mm expected</div>
+                        </div>
+                        <div class="forecast-item">
+                            <div class="label">Wind</div>
+                            <div class="value" id="actWindValue" style="font-size:1.5em">--</div>
+                            <div class="ci">km/h</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7-Day Day Cards -->
+                <div style="margin-top:16px" id="actDayCardsContainer">
+                    <h3 style="color:#00f5a0;margin-bottom:12px;font-family:'Space Grotesk',sans-serif">Daily Breakdown</h3>
+                    <div id="actDayCards" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px"></div>
+                </div>
+
+                <div class="disclaimer" id="activityDisclaimer">
+                    Always check official Fiji Met Service warnings for safety-critical decisions.
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Information on Lagi -->
         <div id="tab-info" class="tab-content">
             <div class="card">
                 <h2>Information on Lagi</h2>
@@ -529,7 +718,11 @@
         const SHOW_CHAT = false; // flip to true when Chat is ready to re-enable
 
         // ─── Constants ───────────────────────────────────────────────────────
-        const API_URL = window.location.origin;
+        // Works at both /ui (standalone) and /lagi/ui (inside renles.com):
+        //   "https://renles.com/lagi/ui" → "https://renles.com/lagi"
+        //   "https://lagi.vercel.app/ui"  → "https://lagi.vercel.app"
+        const API_URL = window.location.origin +
+            window.location.pathname.replace(/\/ui$/, '').replace(/\/$/, '');
         const FETCH_TIMEOUT_MS = 20000;
 
         // ─── Helpers ─────────────────────────────────────────────────────────
@@ -874,6 +1067,147 @@
                 btn.textContent = 'Get Forecast';
             }
         });
+
+        // ─── Activity tab ─────────────────────────────────────────────────────
+
+        var _selectedActivity = null;
+
+        var ACTIVITY_LABELS = {
+            weather_only:   '🌤️ Just the Weather',
+            fishing:        '🎣 Fishing',
+            hiking:         '🥾 Hiking / Outdoors',
+            laundry:        '👕 Doing Laundry',
+            outdoor_event:  '🍖 Outdoor Event / BBQ / Picnic',
+            gardening:      '🌱 Gardening',
+            beach:          '🏖️ Beach / Swimming',
+            sports:         '⚽ Sports & Exercise',
+            boating:        '⛵ Boating / Sailing',
+            cycling:        '🚴 Cycling / Biking',
+            golf:           '⛳ Golf',
+            kids_play:      '🪁 Kids Outdoor Play',
+        };
+
+        function selectActivity(el) {
+            document.querySelectorAll('.activity-card').forEach(function(c) { c.classList.remove('selected'); });
+            el.classList.add('selected');
+            _selectedActivity = el.getAttribute('data-key');
+            var btn = document.getElementById('activityBtn');
+            btn.disabled = false;
+            btn.textContent = 'Get Forecast for ' + (el.querySelector('.act-label').textContent);
+        }
+
+        async function fetchActivityForecast() {
+            if (!_selectedActivity) return;
+            var btn = document.getElementById('activityBtn');
+            btn.disabled = true;
+            btn.textContent = 'Lagi is checking conditions...';
+
+            var errorBox = document.getElementById('activityErrorBox');
+            var resultCard = document.getElementById('activityResultCard');
+            errorBox.classList.remove('active');
+            resultCard.classList.remove('active');
+
+            var body = {
+                location: document.getElementById('activityLocation').value,
+                activity: _selectedActivity,
+            };
+
+            try {
+                var res = await fetchWithTimeout(API_URL + '/forecast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!res.ok) {
+                    var errData = await res.json();
+                    throw new Error(errData.detail || 'Request failed');
+                }
+                var data = await res.json();
+
+                // Activity context badge
+                var badgeEl = document.getElementById('activityBadge');
+                badgeEl.textContent = (ACTIVITY_LABELS[_selectedActivity] || _selectedActivity) + '  ·  ' + data.location;
+
+                document.getElementById('activityResultTitle').textContent =
+                    data.bula || ('Bula! Forecast for ' + data.location);
+
+                // Cyclone risk banner
+                var actBanner = document.getElementById('activityCycloneBanner');
+                var cr = data.cyclone_risk;
+                if (cr) {
+                    actBanner.className = 'cyclone-banner active ' + cr.risk_level;
+                    var icons = { low: '\u2705', elevated: '\u26A0\uFE0F', high: '\u26A0\uFE0F', extreme: '\uD83C\uDF00' };
+                    document.getElementById('activityCycloneRiskLabel').textContent =
+                        (icons[cr.risk_level] || '') + ' Cyclone Risk: ' + cr.risk_level.toUpperCase();
+                    var factorsText = cr.factors && cr.factors.length ? cr.factors.join(' \u2022 ') : 'No elevated risk factors';
+                    if (cr.risk_level === 'high' || cr.risk_level === 'extreme') {
+                        factorsText += ' \u2014 Check met.gov.fj for official warnings';
+                    }
+                    document.getElementById('activityCycloneFactors').textContent = factorsText;
+                } else {
+                    actBanner.className = 'cyclone-banner';
+                }
+
+                // Source attribution
+                document.getElementById('activitySourceMessage').textContent = data.source_message || '';
+
+                // Activity-tailored Lagi commentary
+                var actCommentary = document.getElementById('activityCommentary');
+                var actCommentaryText = document.getElementById('activityCommentaryText');
+                if (data.commentary) {
+                    actCommentaryText.textContent = data.commentary;
+                    actCommentary.classList.add('active');
+                } else {
+                    actCommentary.classList.remove('active');
+                }
+
+                // Summary tiles
+                var mc = data.monte_carlo || {};
+                var af = data.adjusted_forecast || {};
+                var raw = data.raw_forecast || {};
+                document.getElementById('actTempValue').textContent = mc.T_mean ? mc.T_mean + '\u00B0C' : '--';
+                document.getElementById('actTempCI').textContent = mc.T_95_CI ? '95% CI: ' + mc.T_95_CI[0] + '\u00B0C \u2013 ' + mc.T_95_CI[1] + '\u00B0C' : '';
+                document.getElementById('actRainValue').textContent = mc.P_mean != null ? mc.P_mean + '%' : '--';
+                document.getElementById('actRainCI').textContent = mc.P_95_CI ? '95% CI: ' + mc.P_95_CI[0] + '% \u2013 ' + mc.P_95_CI[1] + '%' : '';
+                document.getElementById('actPrecipValue').textContent =
+                    af.precip_mm != null ? af.precip_mm + ' mm' : (raw.precip_mm != null ? raw.precip_mm + ' mm' : '--');
+                document.getElementById('actWindValue').textContent = af.wind || '--';
+
+                // 7-Day day cards
+                var actDayCards = document.getElementById('actDayCards');
+                actDayCards.innerHTML = '';
+                if (data.daily_forecast && data.daily_forecast.length > 0) {
+                    data.daily_forecast.forEach(function(d) {
+                        var dt = new Date(d.date + 'T00:00:00');
+                        var dayName = dt.toLocaleDateString('en-FJ', { weekday: 'short' });
+                        var dateLabel = dt.toLocaleDateString('en-FJ', { month: 'short', day: 'numeric' });
+                        var card = document.createElement('div');
+                        card.className = 'day-card';
+                        card.innerHTML =
+                            '<div class="day-name">' + escapeHtml(dayName) + '</div>' +
+                            '<div class="day-date">' + escapeHtml(dateLabel) + '</div>' +
+                            '<div class="day-temp">' + (d.temperature != null ? d.temperature + '\u00B0C' : '--') + '</div>' +
+                            '<div class="day-detail">' + (d.rain_probability != null ? d.rain_probability + '% rain' : '--') + '</div>' +
+                            '<div class="day-detail">' + (d.wind != null ? d.wind + ' km/h' : '') + '</div>';
+                        actDayCards.appendChild(card);
+                    });
+                    document.getElementById('actDayCardsContainer').style.display = '';
+                } else {
+                    document.getElementById('actDayCardsContainer').style.display = 'none';
+                }
+
+                resultCard.classList.add('active');
+
+            } catch (err) {
+                errorBox.textContent = 'Error: ' + escapeHtml(err.message || 'Unknown error');
+                errorBox.classList.add('active');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Get Forecast for ' + (
+                    document.querySelector('.activity-card.selected .act-label')?.textContent || 'Activity'
+                );
+            }
+        }
     </script>
 </body>
 </html>

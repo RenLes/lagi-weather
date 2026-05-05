@@ -121,8 +121,8 @@ class LagiInference:
         # (see scripts/train_lagi.py:193). Wrapping (P_f + delta_p) in a sigmoid
         # treats those percent values as a logit and saturates the output to
         # ~100% for any P_f >= 5 — that was the dominant cause of the
-        # "always raining" bug, on top of the upstream fallback issues.
-        # Apply the correction additively in percent space and clamp to [0, 100].
+        # "always raining" bug. Apply the correction additively in percent
+        # space and clamp to [0, 100].
         P_static = float(max(0.0, min(100.0, P_f + delta_p)))
 
         # Step 2: Dynamic correlation adjustment (from validation history)
@@ -393,32 +393,97 @@ class LagiInference:
             "disclaimer": "Always follow official Fiji Met Service cyclone warnings at met.gov.fj",
         }
 
+    # Activity-specific prompt templates
+    _ACTIVITY_PROMPTS: dict[str, str] = {
+        "weather_only": (
+            "Give a concise general weather briefing for today covering temperature, "
+            "rain chance, wind conditions, and any safety notes. "
+            "Keep it warm, friendly, and practical for daily Fijian life."
+        ),
+        "fishing": (
+            "The user is planning to go fishing today. Give concise practical advice: "
+            "are conditions safe and good for fishing? Cover wind speed, wave likelihood, "
+            "rain chance, and best times of day (sunrise or dusk). "
+            "Keep it practical for Fijian coastal and river fishers."
+        ),
+        "hiking": (
+            "The user is planning to go hiking or spend time outdoors in Fiji today. "
+            "Give concise practical advice: trail conditions, rain and mud risk, heat and UV, "
+            "visibility, and what to bring. Tailor for Fiji's tropical terrain."
+        ),
+        "laundry": (
+            "The user wants to do laundry today. Give concise practical advice: "
+            "are outdoor drying conditions good? Cover sunshine, humidity, rain forecast, "
+            "and whether indoor or outdoor drying is better today."
+        ),
+        "outdoor_event": (
+            "The user is planning an outdoor event, BBQ, or picnic today. "
+            "Give concise practical advice: rain chance and timing, temperature comfort, "
+            "wind, and whether a backup indoor plan is needed."
+        ),
+        "gardening": (
+            "The user plans to garden today. Give concise practical advice: "
+            "watering needs given recent dry or wet conditions, heat and UV risk for "
+            "working outside, and any weather hazards relevant to plants in Fiji."
+        ),
+        "beach": (
+            "The user is planning to go to the beach or swimming today. "
+            "Give concise practical advice: UV index and sun protection, water and wave safety, "
+            "best times to avoid peak sun, temperature, and any marine hazards."
+        ),
+        "sports": (
+            "The user is planning outdoor sports or exercise today. "
+            "Give concise practical advice: heat and humidity risk, best time of day to play, "
+            "hydration reminders, and any weather that may affect play or safety."
+        ),
+        "boating": (
+            "The user is planning to go boating or sailing today. "
+            "Give concise practical advice: wind speed and direction, wave and swell conditions, "
+            "marine safety, and whether conditions are safe for small or large vessels in Fiji waters."
+        ),
+        "cycling": (
+            "The user is planning to go cycling or biking today. "
+            "Give concise practical advice: wind conditions, visibility from fog or rain, "
+            "road safety, UV and heat exposure, and the best time of day to ride."
+        ),
+        "golf": (
+            "The user is planning a round of golf today. "
+            "Give concise practical advice: rain and lightning timing, wind effect on ball flight, "
+            "UV and heat on the course, and whether overall conditions favor a good round."
+        ),
+        "kids_play": (
+            "The user is planning outdoor activities with children today. "
+            "Give concise practical advice: UV and heat safety for kids, wind conditions "
+            "(great for kites?), rain chance, and any safety notes parents should know."
+        ),
+    }
+
     def generate_forecast_commentary(
         self,
         location: str,
         forecast_result: dict,
         cyclone_risk: dict | None = None,
         daily_forecast: list | None = None,
+        activity: str = "",
     ) -> str:
         """
         Auto-generate a warm Fijian-English weather briefing for the Forecast portal.
-        No user question — produces a standing daily narrative (3-5 sentences).
-        Uses the same Groq → template fallback pipeline as natural_language_response().
+        Pass `activity` (one of the _ACTIVITY_PROMPTS keys) for activity-specific advice.
+        Uses the Groq → template fallback pipeline from natural_language_response().
         """
-        briefing_prompt = (
-            "Give me a concise weather briefing for today covering temperature, "
-            "rain chance, wind conditions, and any safety notes if needed. "
-            "Keep it warm, friendly, and practical for daily Fijian life."
+        briefing_prompt = self._ACTIVITY_PROMPTS.get(
+            activity, self._ACTIVITY_PROMPTS["weather_only"]
         )
         return self.natural_language_response(
             question=briefing_prompt,
             location=location,
             forecast_result=forecast_result,
             cyclone_risk=cyclone_risk,
+            activity=activity,
         )
 
     def natural_language_response(self, question: str, location: str, forecast_result: dict,
-                                   cyclone_risk: dict | None = None) -> str:
+                                   cyclone_risk: dict | None = None, activity: str = "") -> str:
         """
         Generate a warm, Fijian-tone natural language answer to a weather question
         using Groq LLM (llama-3.3-70b-versatile). Falls back to templates if unavailable.
@@ -440,7 +505,7 @@ class LagiInference:
                 logger.warning("Groq API call failed, falling back to templates: %s", e)
 
         # Fallback to template-based response
-        return self._template_response(question, location, T, P, W, mc, cert_pct)
+        return self._template_response(question, location, T, P, W, mc, cert_pct, activity=activity)
 
     @staticmethod
     def _sanitize_question(question: str) -> str:
@@ -522,8 +587,293 @@ class LagiInference:
         return reply
 
     def _template_response(self, question: str, location: str,
-                           T: float, P: float, W: float, mc: dict, cert_pct: int) -> str:
+                           T: float, P: float, W: float, mc: dict, cert_pct: int,
+                           activity: str = "") -> str:
         """Fallback template-based response when Groq is unavailable."""
+
+        # ── Shared descriptors ────────────────────────────────────────────────
+        rain_pct = int(round(P))
+        wind_kmh = int(round(W)) if W else 0
+        temp_c = round(T, 1)
+
+        rain_ok  = P < 35
+        rain_mid = 35 <= P < 65
+        rain_bad = P >= 65
+
+        wind_calm    = wind_kmh < 20
+        wind_mod     = 20 <= wind_kmh < 35
+        wind_strong  = wind_kmh >= 35
+
+        hot   = T >= 32
+        warm  = 27 <= T < 32
+        cool  = T < 27
+
+        def temp_desc():
+            if hot:  return f"hot at {temp_c}°C"
+            if warm: return f"warm at {temp_c}°C"
+            return f"mild at {temp_c}°C"
+
+        def rain_desc():
+            if rain_ok:  return f"low rain chance ({rain_pct}%)"
+            if rain_mid: return f"some chance of showers ({rain_pct}%)"
+            return f"high chance of rain ({rain_pct}%)"
+
+        disclaimer = "Always check official Fiji Met Service warnings at met.gov.fj for safety decisions."
+
+        # ── Activity-specific templates ───────────────────────────────────────
+        if activity == "fishing":
+            if rain_bad or wind_strong:
+                return (
+                    f"Bula! Conditions for fishing in {location} aren't great today — "
+                    f"{rain_desc()}, winds at {wind_kmh} km/h. "
+                    f"{'Strong winds could make the water rough — ' if wind_strong else ''}"
+                    f"Consider waiting for calmer conditions, or stick close to the reef if you must go. "
+                    f"Safety first out there! {disclaimer}"
+                )
+            elif rain_ok and wind_calm:
+                return (
+                    f"Bula! Great day for fishing in {location}! "
+                    f"{rain_desc()}, winds light at {wind_kmh} km/h — calm water expected. "
+                    f"Head out at sunrise or dusk for the best bites. "
+                    f"Wear your life jacket and let someone know your plans. {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Decent fishing conditions in {location} today — "
+                    f"{rain_desc()}, winds around {wind_kmh} km/h. "
+                    f"Early morning is your best window before conditions change. "
+                    f"Pack rain gear just in case and wear your life jacket. {disclaimer}"
+                )
+
+        if activity == "hiking":
+            if rain_bad:
+                return (
+                    f"Bula! I'd be cautious about hiking in {location} today — {rain_desc()}. "
+                    f"Trails can get muddy and slippery after heavy rain in Fiji's terrain. "
+                    f"If you go, wear proper grip footwear and pack a rain jacket. "
+                    f"Wait for Sunday if you can — conditions look better. {disclaimer}"
+                )
+            elif hot:
+                return (
+                    f"Bula! You can hike in {location} today but it's {temp_desc()} — start early! "
+                    f"Hit the trail before 8 AM to beat the heat. Carry plenty of water, "
+                    f"wear a hat, and take shelter during midday. {rain_desc()} today. {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Lovely conditions for a hike in {location} — {temp_desc()}, {rain_desc()}. "
+                    f"Winds are {wind_kmh} km/h so the ridges should be comfortable. "
+                    f"Pack water, a light rain layer, and enjoy the views! {disclaimer}"
+                )
+
+        if activity == "laundry":
+            if rain_bad:
+                return (
+                    f"Bula! Today isn't great for drying clothes outside in {location} — "
+                    f"{rain_desc()}. Use your dryer or hang them on indoor racks with a fan for airflow. "
+                    f"Check the forecast for tomorrow — if it clears, morning sun will dry them fast. {disclaimer}"
+                )
+            elif rain_ok and warm:
+                return (
+                    f"Bula! Perfect laundry day in {location}! "
+                    f"{temp_desc()}, {rain_desc()} — your clothes will dry fast on the line. "
+                    f"Hang them out in the morning and bring them in by early afternoon "
+                    f"to avoid any late showers. {disclaimer}"
+                )
+            elif rain_mid:
+                return (
+                    f"Bula! Mixed conditions for laundry in {location} today — {rain_desc()}. "
+                    f"It's {temp_desc()} so drying is possible, but keep an eye on the sky. "
+                    f"Bring clothes in at the first sign of clouds to avoid a second wash! {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Not bad for laundry in {location} — {rain_desc()}, {temp_desc()}. "
+                    f"Outdoor drying should work but may take a bit longer. "
+                    f"Hang them early and check back in a few hours. {disclaimer}"
+                )
+
+        if activity == "outdoor_event":
+            if rain_bad:
+                return (
+                    f"Bula! I'd have a backup indoor plan for your event in {location} today — "
+                    f"{rain_desc()}. Showers could arrive any time this afternoon. "
+                    f"If you go ahead outdoors, set up a shelter or marquee and schedule activities for the morning. {disclaimer}"
+                )
+            elif rain_ok:
+                return (
+                    f"Bula! Great news for your outdoor event in {location}! "
+                    f"{rain_desc()}, {temp_desc()}, winds at {wind_kmh} km/h. "
+                    f"{'It will be warm so keep drinks and shade available. ' if hot or warm else ''}"
+                    f"Go ahead and enjoy — conditions look excellent. {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Conditions for your outdoor event in {location} are okay but watch for showers — "
+                    f"{rain_desc()}. Morning start is safer than afternoon. "
+                    f"Have a covered area ready just in case, and you should be fine. {disclaimer}"
+                )
+
+        if activity == "gardening":
+            if rain_bad:
+                return (
+                    f"Bula! Good news for your garden in {location} — {rain_desc()} means nature will do the watering! "
+                    f"No need to irrigate today. Focus on indoor tasks or light weeding during any dry gaps. "
+                    f"If it's very heavy rain, check drainage around vulnerable plants. {disclaimer}"
+                )
+            elif rain_ok and hot:
+                return (
+                    f"Bula! Dry and {temp_desc()} in {location} today — your garden will need a good drink. "
+                    f"Water deeply this evening when the heat drops to reduce evaporation. "
+                    f"Mulch around the base of tomatoes and flowers to keep soil moist longer. {disclaimer}"
+                )
+            elif rain_ok:
+                return (
+                    f"Bula! Nice gardening day in {location} — {temp_desc()}, {rain_desc()}. "
+                    f"Good time to plant, weed, or prune. "
+                    f"Water in the evening if the soil feels dry — Fiji's humidity helps, but check tomatoes and flowers first. {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Mixed conditions for gardening in {location} today — {rain_desc()}. "
+                    f"Work in the garden during any dry spells this morning. "
+                    f"Hold off on watering and let the rain do it for you if showers arrive. {disclaimer}"
+                )
+
+        if activity == "beach":
+            if rain_bad or wind_strong:
+                return (
+                    f"Bula! Beach conditions in {location} aren't ideal today — "
+                    f"{rain_desc()}, winds at {wind_kmh} km/h. "
+                    f"{'Strong winds can create rough surf — ' if wind_strong else ''}"
+                    f"Swimming may not be safe. Consider waiting for a calmer day. {disclaimer}"
+                )
+            elif hot:
+                return (
+                    f"Bula! Beach day in {location}! It's {temp_desc()} so UV will be very high — "
+                    f"apply SPF 50+ sunscreen, wear a hat, and seek shade between 11 AM and 3 PM. "
+                    f"{rain_desc()} and winds at {wind_kmh} km/h — water conditions look manageable. {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Lovely beach conditions in {location} — {temp_desc()}, {rain_desc()}, "
+                    f"winds at {wind_kmh} km/h. "
+                    f"Still apply sunscreen even on cloudy days — UV in Fiji is strong year-round. "
+                    f"Best swimming window is mid-morning to early afternoon. {disclaimer}"
+                )
+
+        if activity == "sports":
+            if hot and wind_calm:
+                return (
+                    f"Bula! It's {temp_desc()} in {location} with little wind — heat risk is real. "
+                    f"Play early morning (before 9 AM) or after 5 PM to avoid the worst heat. "
+                    f"Drink water every 15–20 minutes and take shade breaks. Limit sessions to under 45 minutes. {disclaimer}"
+                )
+            elif rain_bad:
+                return (
+                    f"Bula! {rain_desc()} in {location} today — outdoor sports could be disrupted. "
+                    f"If you play, watch for slippery surfaces and lightning during heavy showers. "
+                    f"Morning may offer a dry window, but have an indoor backup ready. {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Decent conditions for outdoor sports in {location} — {temp_desc()}, {rain_desc()}. "
+                    f"{'A bit warm, so stay hydrated and take regular breaks. ' if warm else ''}"
+                    f"Winds at {wind_kmh} km/h — {'may affect ball sports slightly. ' if wind_mod else 'not a factor today. '}"
+                    f"Enjoy the game! {disclaimer}"
+                )
+
+        if activity == "boating":
+            if wind_strong or rain_bad:
+                return (
+                    f"Bula! I'd advise caution before heading out from {location} today — "
+                    f"{rain_desc()}, winds at {wind_kmh} km/h. "
+                    f"{'Strong winds are dangerous for small vessels. ' if wind_strong else ''}"
+                    f"Check the Fiji Met Service marine forecast and local harbour authority before departing. "
+                    f"If in doubt, stay ashore. {disclaimer}"
+                )
+            elif wind_calm and rain_ok:
+                return (
+                    f"Bula! Good boating conditions out of {location} today — "
+                    f"winds light at {wind_kmh} km/h, {rain_desc()}. "
+                    f"Sea should be manageable. Always file a trip plan, wear life jackets, "
+                    f"and carry VHF radio. Check local marine warnings before departure. {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Moderate conditions for boating out of {location} — "
+                    f"{rain_desc()}, winds around {wind_kmh} km/h. "
+                    f"Larger vessels should be fine; small dinghies should exercise caution. "
+                    f"Check the marine forecast and wear your life jacket. {disclaimer}"
+                )
+
+        if activity == "cycling":
+            if rain_bad:
+                return (
+                    f"Bula! Cycling in {location} today comes with {rain_desc()} — "
+                    f"roads will be wet and slippery. Use lights and bright clothing for visibility, "
+                    f"and brake earlier than usual. Consider an indoor workout if the rain is heavy. {disclaimer}"
+                )
+            elif hot:
+                return (
+                    f"Bula! It's {temp_desc()} in {location} — cycling heat risk is real. "
+                    f"Ride early morning before 8 AM or after 5 PM. "
+                    f"Carry extra water, wear UV-rated kit, and take a break in shade if you feel overheated. "
+                    f"{rain_desc()} today. {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Good cycling conditions in {location} — {temp_desc()}, {rain_desc()}, "
+                    f"winds at {wind_kmh} km/h. "
+                    f"{'Headwinds may add effort on the outward leg — plan accordingly. ' if wind_mod else ''}"
+                    f"Great day to get on the bike! {disclaimer}"
+                )
+
+        if activity == "golf":
+            if rain_bad:
+                return (
+                    f"Bula! Rain is looking {rain_desc()} in {location} today — "
+                    f"the course may be soft or closed. Check with your club before heading out. "
+                    f"If you play, watch for lightning and suspend if it arrives — safety off the course first. {disclaimer}"
+                )
+            elif wind_strong:
+                return (
+                    f"Bula! Winds at {wind_kmh} km/h in {location} will make club selection tricky today. "
+                    f"Expect the ball to move significantly — especially on approach shots. "
+                    f"{rain_desc()}, {temp_desc()}. Factor an extra club or two into your game plan. {disclaimer}"
+                )
+            else:
+                return (
+                    f"Bula! Good golfing conditions in {location} today — {temp_desc()}, {rain_desc()}, "
+                    f"winds around {wind_kmh} km/h. "
+                    f"{'Stay hydrated on the back nine — it will be warm out there. ' if hot or warm else ''}"
+                    f"Enjoy your round! {disclaimer}"
+                )
+
+        if activity == "kids_play":
+            if hot:
+                return (
+                    f"Bula! It's {temp_desc()} in {location} — UV will be very strong. "
+                    f"Apply SPF 50+ sunscreen on the kids, have them wear hats and light clothing, "
+                    f"and keep outdoor time to before 10 AM or after 4 PM. "
+                    f"{rain_desc()}. Keep water bottles full and watch for signs of overheating. {disclaimer}"
+                )
+            elif rain_bad:
+                return (
+                    f"Bula! {rain_desc()} in {location} today — outdoor play may get interrupted. "
+                    f"Have an indoor backup ready. If there are dry windows in the morning, "
+                    f"let the kids get outside then. Avoid outdoor play during thunderstorms. {disclaimer}"
+                )
+            else:
+                wind_kite = " — perfect kite-flying weather!" if 10 <= wind_kmh <= 25 else "."
+                return (
+                    f"Bula! Great day for kids outdoors in {location} — {temp_desc()}, {rain_desc()}, "
+                    f"winds at {wind_kmh} km/h{wind_kite} "
+                    f"Still apply sunscreen — UV in Fiji is strong even on cloudy days. "
+                    f"Enjoy the fun! {disclaimer}"
+                )
+
+        # ── General weather briefing (weather_only or unknown activity) ───────
         q = question.lower()
 
         # Determine rain likelihood

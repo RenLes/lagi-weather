@@ -2,10 +2,15 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.egg
 dist/
 build/
 .eggs/
-*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
 venv/
@@ -28,25 +33,49 @@ data/actuals_log.jsonl
 data/performance_log.jsonl
 data/cache/
 
-# Vercel env-pull artifacts (contain secrets)
+# Logs (keep training log, ignore others)
+logs/*.log
+!logs/nohup_training_v2.log
+*.log.gz
+
+# Databases / local state
+*.sqlite
+*.sqlite3
+*.db
+
+# Environment & secrets — defensive catch-all
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.cer
+*.crt
+secrets/
+GoogleService-Info.plist
+
+# Vercel
+.vercel
+.vercel/
 .env.prod
 .env.local
 .env.development
 
-# Logs (keep training log, ignore others)
-logs/*.log
-!logs/nohup_training_v2.log
+# Node / JS (in case of future frontend additions)
+node_modules/
+.next/
+.nuxt/
 
-# IDE
+# IDE / editor noise
 .vscode/
 .idea/
+*.iml
 *.swp
 *.swo
 
-# OS
+# OS noise
 .DS_Store
 Thumbs.db
-
-# Environment
-.env
-.vercel
+desktop.ini

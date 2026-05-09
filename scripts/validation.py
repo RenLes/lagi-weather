@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 Lagi -- Fiji Weather Guardian: Prediction Validation Module
 =============================================================
@@ -21,6 +22,7 @@ Coefficient Output (dynamic_coefficients.json):
 
 import json
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -28,14 +30,15 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from config import (
+    DATA_DIR, OUTPUT_DIR, PREDICTIONS_LOG, ACTUALS_LOG,
+    DYNAMIC_COEFFICIENTS_FILE, MIN_CORRELATION_SAMPLES, DYNAMIC_R_THRESHOLD,
+)
+
 logger = logging.getLogger("lagi.validation")
-
-DATA_DIR = Path(__file__).parent.parent / "data"
-OUTPUT_DIR = Path(__file__).parent.parent / "output"
-
-PREDICTIONS_LOG = DATA_DIR / "predictions_log.jsonl"
-ACTUALS_LOG = DATA_DIR / "actuals_log.jsonl"
-DYNAMIC_COEFFICIENTS_FILE = OUTPUT_DIR / "dynamic_coefficients.json"
 
 
 # ---------------------------------------------------------------------------
@@ -171,15 +174,16 @@ def compute_correlation() -> dict:
         how="inner",
     )
 
-    if len(merged) < 5:
-        logger.warning("Only %d matched prediction-actual pairs. Need at least 5 for correlation.", len(merged))
+    if len(merged) < MIN_CORRELATION_SAMPLES:
+        logger.warning("Only %d matched prediction-actual pairs. Need at least %d for correlation.",
+                        len(merged), MIN_CORRELATION_SAMPLES)
         return _default_coefficients()
 
     result = {"last_updated": datetime.utcnow().isoformat(), "n_samples": len(merged)}
 
     # Temperature correlation
     temp_mask = merged["predicted_T"].notna() & merged["T_a"].notna()
-    if temp_mask.sum() >= 5:
+    if temp_mask.sum() >= MIN_CORRELATION_SAMPLES:
         pred_t = merged.loc[temp_mask, "predicted_T"].astype(float)
         actual_t = merged.loc[temp_mask, "T_a"].astype(float)
 
@@ -205,7 +209,7 @@ def compute_correlation() -> dict:
 
     # Precipitation correlation
     precip_mask = merged["predicted_P"].notna() & merged["P_a"].notna()
-    if precip_mask.sum() >= 5:
+    if precip_mask.sum() >= MIN_CORRELATION_SAMPLES:
         pred_p = merged.loc[precip_mask, "predicted_P"].astype(float)
         actual_p = merged.loc[precip_mask, "P_a"].astype(float)
 
@@ -283,7 +287,7 @@ def apply_dynamic_adjustment(
 
     # Temperature adjustment
     temp_r = coefficients.get("temp_pearson_r")
-    if temp_r is not None and abs(temp_r) > 0.5:
+    if temp_r is not None and abs(temp_r) > DYNAMIC_R_THRESHOLD:
         # Strong correlation: use regression-based correction
         adjusted_T = ensemble_T * coefficients["temp_slope"] + coefficients["temp_intercept"]
         method_T = "regression"
@@ -294,7 +298,7 @@ def apply_dynamic_adjustment(
 
     # Precipitation adjustment
     precip_r = coefficients.get("precip_pearson_r")
-    if precip_r is not None and abs(precip_r) > 0.5:
+    if precip_r is not None and abs(precip_r) > DYNAMIC_R_THRESHOLD:
         adjusted_P = ensemble_P * coefficients["precip_slope"] + coefficients["precip_intercept"]
         method_P = "regression"
     else:
